@@ -1,12 +1,18 @@
 import { createApp } from "../../src/app.js";
 import type { Environment } from "../../src/config/environment.js";
 import type { DocumentExtractionService } from "../../src/extraction/extraction-types.js";
+import type {
+  GeneratedPdf,
+  PdfGenerationService,
+} from "../../src/pdf-generation/pdf-generation-types.js";
 import pino, { type Logger } from "pino";
 
 export const testEnvironment: Environment = {
   extractRateLimitMax: 1000,
   extractRateLimitWindowMs: 60_000,
   frontendOrigin: "http://localhost:5173",
+  generateRateLimitMax: 1000,
+  generateRateLimitWindowMs: 60_000,
   groqApiKey: "test-key-not-used",
   groqMaxInputCharacters: 30_000,
   groqMaxRetries: 0,
@@ -45,11 +51,24 @@ export const createFakeExtractionService = (): DocumentExtractionService => ({
   }),
 });
 
+export const createFakePdfGenerationService = (): PdfGenerationService => ({
+  generate: async ({ documentDefinition, flatten, template }) =>
+    ({
+      bytes: new TextEncoder().encode("%PDF-FAKE"),
+      filename: `docella-${documentDefinition.id}-${template.id}.pdf`,
+      flattened: flatten ?? template.flattenByDefault,
+      schemaType: documentDefinition.id,
+      templateId: template.id,
+    }) satisfies GeneratedPdf,
+});
+
 export const createTestApp = (
   extractionService: DocumentExtractionService = createFakeExtractionService(),
+  pdfGenerationService: PdfGenerationService = createFakePdfGenerationService(),
 ) =>
   createApp({
     environment: testEnvironment,
     extractionService,
     logger: createSilentLogger(),
+    pdfGenerationService,
   });

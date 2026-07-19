@@ -6,6 +6,8 @@ const validSource = {
   EXTRACT_RATE_LIMIT_MAX: "10",
   EXTRACT_RATE_LIMIT_WINDOW_MS: "60000",
   FRONTEND_ORIGIN: "http://localhost:5173",
+  GENERATE_RATE_LIMIT_MAX: "20",
+  GENERATE_RATE_LIMIT_WINDOW_MS: "60000",
   GROQ_API_KEY: "test-secret-key",
   GROQ_MAX_INPUT_CHARACTERS: "30000",
   GROQ_MAX_RETRIES: "1",
@@ -35,6 +37,8 @@ describe("parseEnvironment", () => {
       extractRateLimitMax: 10,
       extractRateLimitWindowMs: 60_000,
       frontendOrigin: "http://localhost:5173",
+      generateRateLimitMax: 20,
+      generateRateLimitWindowMs: 60_000,
       groqApiKey: "test-secret-key",
       groqMaxInputCharacters: 30_000,
       groqMaxRetries: 1,
@@ -59,6 +63,8 @@ describe("parseEnvironment", () => {
       extractRateLimitMax: 10,
       extractRateLimitWindowMs: 60_000,
       frontendOrigin: "https://app.example.com",
+      generateRateLimitMax: 20,
+      generateRateLimitWindowMs: 60_000,
       groqApiKey: "production-secret",
       groqMaxInputCharacters: 30_000,
       groqMaxRetries: 1,
@@ -80,6 +86,8 @@ describe("parseEnvironment", () => {
       extractRateLimitMax: 10,
       extractRateLimitWindowMs: 60_000,
       frontendOrigin: "http://localhost:5173",
+      generateRateLimitMax: 20,
+      generateRateLimitWindowMs: 60_000,
       groqApiKey: "default-secret",
       groqMaxInputCharacters: 30_000,
       groqMaxRetries: 1,
@@ -193,6 +201,19 @@ describe("parseEnvironment", () => {
     );
     expectInvalidField({ ...validSource, EXTRACT_RATE_LIMIT_MAX: "0" }, "EXTRACT_RATE_LIMIT_MAX");
     expectInvalidField({ ...validSource, EXTRACT_RATE_LIMIT_MAX: "101" }, "EXTRACT_RATE_LIMIT_MAX");
+    expectInvalidField(
+      { ...validSource, GENERATE_RATE_LIMIT_WINDOW_MS: "999" },
+      "GENERATE_RATE_LIMIT_WINDOW_MS",
+    );
+    expectInvalidField(
+      { ...validSource, GENERATE_RATE_LIMIT_WINDOW_MS: "3600001" },
+      "GENERATE_RATE_LIMIT_WINDOW_MS",
+    );
+    expectInvalidField({ ...validSource, GENERATE_RATE_LIMIT_MAX: "0" }, "GENERATE_RATE_LIMIT_MAX");
+    expectInvalidField(
+      { ...validSource, GENERATE_RATE_LIMIT_MAX: "201" },
+      "GENERATE_RATE_LIMIT_MAX",
+    );
   });
 
   it("rejects invalid maximum input-character settings", () => {

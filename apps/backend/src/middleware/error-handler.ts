@@ -77,7 +77,7 @@ export const errorHandler =
       logger.warn(logPayload, "Request rejected");
     }
 
-    if (request.path.startsWith("/api/extract")) {
+    if (request.path.startsWith("/api/extract") || request.path.startsWith("/api/generate-pdf")) {
       response.setHeader("Cache-Control", "no-store");
     }
 

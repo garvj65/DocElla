@@ -5,6 +5,11 @@ const extractionServiceModule = await import("../dist/extraction/extraction-serv
 const groundingServiceModule = await import("../dist/grounding/grounding-service.js");
 const groundingNormalizationModule = await import("../dist/grounding/normalization.js");
 const textSimilarityModule = await import("../dist/grounding/text-similarity.js");
+const pdfGenerationServiceModule = await import("../dist/pdf-generation/pdf-generation-service.js");
+const pdfTemplateRepositoryModule =
+  await import("../dist/pdf-generation/pdf-template-repository.js");
+const pdfValueFormatterModule = await import("../dist/pdf-generation/pdf-value-formatter.js");
+const generatePdfRouteModule = await import("../dist/routes/generate-pdf.js");
 
 if (typeof appModule.createApp !== "function") {
   throw new TypeError("Expected dist/app.js to export createApp.");
@@ -52,4 +57,26 @@ if (typeof textSimilarityModule.containsTokenSequence !== "function") {
   throw new TypeError(
     "Expected dist/grounding/text-similarity.js to export containsTokenSequence.",
   );
+}
+
+if (typeof pdfGenerationServiceModule.createPdfGenerationService !== "function") {
+  throw new TypeError(
+    "Expected dist/pdf-generation/pdf-generation-service.js to export createPdfGenerationService.",
+  );
+}
+
+if (typeof pdfTemplateRepositoryModule.createFilePdfTemplateRepository !== "function") {
+  throw new TypeError(
+    "Expected dist/pdf-generation/pdf-template-repository.js to export createFilePdfTemplateRepository.",
+  );
+}
+
+if (typeof pdfValueFormatterModule.formatPdfFieldValue !== "function") {
+  throw new TypeError(
+    "Expected dist/pdf-generation/pdf-value-formatter.js to export formatPdfFieldValue.",
+  );
+}
+
+if (typeof generatePdfRouteModule.createGeneratePdfRouter !== "function") {
+  throw new TypeError("Expected dist/routes/generate-pdf.js to export createGeneratePdfRouter.");
 }

@@ -8,6 +8,8 @@ import { createGroqClient } from "./extraction/groq-client.js";
 import { createGroqStructuredExtractor } from "./extraction/groq-structured-extractor.js";
 import { createPdfTextExtractor } from "./extraction/pdf-text-extractor.js";
 import { createGroundingService } from "./grounding/grounding-service.js";
+import { createPdfGenerationService } from "./pdf-generation/pdf-generation-service.js";
+import { createFilePdfTemplateRepository } from "./pdf-generation/pdf-template-repository.js";
 import { startServer } from "./runtime/start-server.js";
 
 const start = (): void => {
@@ -27,7 +29,11 @@ const start = (): void => {
     pdfTextExtractor,
     structuredExtractor,
   });
-  const app = createApp({ environment, extractionService, logger });
+  const templateRepository = createFilePdfTemplateRepository(
+    new URL("../assets/", import.meta.url),
+  );
+  const pdfGenerationService = createPdfGenerationService(templateRepository);
+  const app = createApp({ environment, extractionService, logger, pdfGenerationService });
 
   startServer({ app, environment, logger });
 };
