@@ -1,52 +1,52 @@
 export const DOCELLA_PROJECT_NAME = "DocElla" as const;
 
-export type { DocumentDefinition, TemplateDefinition } from "./contracts/document-definition";
+export type { DocumentDefinition, TemplateDefinition } from "./contracts/document-definition.js";
 export type {
   FieldDefinition,
   FieldKind,
   NonSelectFieldDefinition,
   SelectFieldDefinition,
   SelectOption,
-} from "./contracts/field-definition";
+} from "./contracts/field-definition.js";
 export type {
   PublicDocumentConfig,
   PublicDocumentSummary,
   PublicFieldConfig,
   PublicTemplateConfig,
-} from "./contracts/public-document-config";
+} from "./contracts/public-document-config.js";
 
-export { defineDocument } from "./define-document";
+export { defineDocument } from "./define-document.js";
 export {
   buildDefaultValues,
   type DefaultFieldValue,
   type DefaultValues,
-} from "./builders/build-default-values";
+} from "./builders/build-default-values.js";
 export {
   buildExtractionSchema,
   type ExtractionData,
   type ExtractionSchema,
-} from "./builders/build-extraction-schema";
+} from "./builders/build-extraction-schema.js";
 export {
   buildJsonSchema,
   type JsonObject,
   type JsonPrimitive,
   type JsonValue,
-} from "./builders/build-json-schema";
+} from "./builders/build-json-schema.js";
 export {
   buildPublicDocumentConfig,
   buildPublicDocumentSummary,
-} from "./builders/build-public-config";
+} from "./builders/build-public-config.js";
 export {
   buildSubmissionSchema,
   type SubmissionData,
   type SubmissionSchema,
-} from "./builders/build-submission-schema";
-export { basicInvoiceDefinition } from "./definitions/basic-invoice";
-export { jobApplicationDefinition } from "./definitions/job-application";
+} from "./builders/build-submission-schema.js";
+export { basicInvoiceDefinition } from "./definitions/basic-invoice.js";
+export { jobApplicationDefinition } from "./definitions/job-application.js";
 export {
   assertUniqueDocumentDefinitions,
   getDocumentDefinition,
   getPublicDocumentConfig,
   listDocumentDefinitions,
   listPublicDocumentSummaries,
-} from "./registry";
+} from "./registry.js";

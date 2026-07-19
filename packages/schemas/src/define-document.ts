@@ -1,5 +1,5 @@
-import type { DocumentDefinition } from "./contracts/document-definition";
-import type { FieldDefinition } from "./contracts/field-definition";
+import type { DocumentDefinition } from "./contracts/document-definition.js";
+import type { FieldDefinition } from "./contracts/field-definition.js";
 
 const identifierPattern = /^[A-Za-z][A-Za-z0-9-]*$/;
 

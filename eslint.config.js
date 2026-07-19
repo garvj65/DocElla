@@ -45,6 +45,7 @@ export default tseslint.config(
   {
     files: [
       "**/*.test.{ts,tsx}",
+      "**/scripts/**/*.mjs",
       "**/test/support/**/*.ts",
       "**/vitest.config.ts",
       "scripts/**/*.mjs",

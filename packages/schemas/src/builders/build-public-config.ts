@@ -1,11 +1,11 @@
-import type { DocumentDefinition } from "../contracts/document-definition";
-import type { FieldDefinition, SelectOption } from "../contracts/field-definition";
+import type { DocumentDefinition } from "../contracts/document-definition.js";
+import type { FieldDefinition, SelectOption } from "../contracts/field-definition.js";
 import type {
   PublicDocumentConfig,
   PublicDocumentSummary,
   PublicFieldConfig,
   PublicTemplateConfig,
-} from "../contracts/public-document-config";
+} from "../contracts/public-document-config.js";
 
 const cloneOptions = (
   options: readonly [SelectOption, ...SelectOption[]],

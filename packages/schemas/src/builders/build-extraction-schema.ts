@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import type { DocumentDefinition } from "../contracts/document-definition";
-import { buildExtractionFieldSchema } from "./field-schema";
+import type { DocumentDefinition } from "../contracts/document-definition.js";
+import { buildExtractionFieldSchema } from "./field-schema.js";
 
 type SchemaShape = Record<string, z.ZodType>;
 

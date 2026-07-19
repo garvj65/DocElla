@@ -1,4 +1,4 @@
-import type { FieldKind, SelectOption } from "./field-definition";
+import type { FieldKind, SelectOption } from "./field-definition.js";
 
 export interface PublicTemplateConfig {
   readonly id: string;

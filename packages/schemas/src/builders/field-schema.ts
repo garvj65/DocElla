@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { FieldDefinition, SelectFieldDefinition } from "../contracts/field-definition";
+import type { FieldDefinition, SelectFieldDefinition } from "../contracts/field-definition.js";
 
 const nonblank = (value: string): boolean => value.trim().length > 0;
 const finiteNumber = (): z.ZodNumber =>
