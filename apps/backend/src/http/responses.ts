@@ -5,7 +5,7 @@ import type { ErrorDetails } from "../errors/app-error.js";
 
 interface ResponseMeta {
   readonly requestId: string;
-  readonly [key: string]: string | number | boolean;
+  readonly [key: string]: string | number | boolean | null;
 }
 
 interface SuccessEnvelope {

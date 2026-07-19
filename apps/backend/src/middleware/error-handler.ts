@@ -73,5 +73,9 @@ export const errorHandler =
       logger.warn(logPayload, "Request rejected");
     }
 
+    if (request.path.startsWith("/api/extract")) {
+      response.setHeader("Cache-Control", "no-store");
+    }
+
     sendError(response, appError.status, appError.code, appError.message, appError.details);
   };

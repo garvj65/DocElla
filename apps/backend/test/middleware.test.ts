@@ -9,7 +9,12 @@ import { AppError } from "../src/errors/app-error.js";
 import { ERROR_CODES } from "../src/errors/error-codes.js";
 import { errorHandler } from "../src/middleware/error-handler.js";
 import { requestContext } from "../src/middleware/request-context.js";
-import { createSilentLogger, testEnvironment } from "./support/create-test-app.js";
+import { createTestPdf } from "./support/create-test-pdf.js";
+import {
+  createFakeExtractionService,
+  createSilentLogger,
+  testEnvironment,
+} from "./support/create-test-app.js";
 
 class MemoryLogStream extends Writable {
   public readonly entries: string[] = [];
@@ -27,7 +32,11 @@ class MemoryLogStream extends Writable {
 describe("middleware", () => {
   it("allows the configured CORS origin", async () => {
     const response = await request(
-      createApp({ environment: testEnvironment, logger: createSilentLogger() }),
+      createApp({
+        environment: testEnvironment,
+        extractionService: createFakeExtractionService(),
+        logger: createSilentLogger(),
+      }),
     )
       .get("/api/health")
       .set("Origin", testEnvironment.frontendOrigin)
@@ -38,7 +47,11 @@ describe("middleware", () => {
 
   it("denies a different browser origin with a typed error", async () => {
     const response = await request(
-      createApp({ environment: testEnvironment, logger: createSilentLogger() }),
+      createApp({
+        environment: testEnvironment,
+        extractionService: createFakeExtractionService(),
+        logger: createSilentLogger(),
+      }),
     )
       .get("/api/health")
       .set("Origin", "https://evil.example")
@@ -51,7 +64,11 @@ describe("middleware", () => {
 
   it("allows requests without an Origin header", async () => {
     const response = await request(
-      createApp({ environment: testEnvironment, logger: createSilentLogger() }),
+      createApp({
+        environment: testEnvironment,
+        extractionService: createFakeExtractionService(),
+        logger: createSilentLogger(),
+      }),
     )
       .get("/api/health")
       .expect(200);
@@ -61,7 +78,11 @@ describe("middleware", () => {
 
   it("allows preflight from the configured origin", async () => {
     const response = await request(
-      createApp({ environment: testEnvironment, logger: createSilentLogger() }),
+      createApp({
+        environment: testEnvironment,
+        extractionService: createFakeExtractionService(),
+        logger: createSilentLogger(),
+      }),
     )
       .options("/api/health")
       .set("Access-Control-Request-Method", "GET")
@@ -73,7 +94,11 @@ describe("middleware", () => {
 
   it("returns JSON for unknown routes", async () => {
     const response = await request(
-      createApp({ environment: testEnvironment, logger: createSilentLogger() }),
+      createApp({
+        environment: testEnvironment,
+        extractionService: createFakeExtractionService(),
+        logger: createSilentLogger(),
+      }),
     )
       .get("/api/does-not-exist")
       .expect(404);
@@ -84,7 +109,11 @@ describe("middleware", () => {
 
   it("maps malformed JSON to a typed error", async () => {
     const response = await request(
-      createApp({ environment: testEnvironment, logger: createSilentLogger() }),
+      createApp({
+        environment: testEnvironment,
+        extractionService: createFakeExtractionService(),
+        logger: createSilentLogger(),
+      }),
     )
       .post("/api/health")
       .set("Content-Type", "application/json")
@@ -97,7 +126,11 @@ describe("middleware", () => {
 
   it("maps oversized JSON to a typed error", async () => {
     const response = await request(
-      createApp({ environment: testEnvironment, logger: createSilentLogger() }),
+      createApp({
+        environment: testEnvironment,
+        extractionService: createFakeExtractionService(),
+        logger: createSilentLogger(),
+      }),
     )
       .post("/api/health")
       .set("Content-Type", "application/json")
@@ -150,7 +183,13 @@ describe("middleware", () => {
   it("logs request metadata without sensitive values or query strings", async () => {
     const stream = new MemoryLogStream();
     const logger = pino({ level: "info" }, stream);
-    const response = await request(createApp({ environment: testEnvironment, logger }))
+    const response = await request(
+      createApp({
+        environment: testEnvironment,
+        extractionService: createFakeExtractionService(),
+        logger,
+      }),
+    )
       .get("/api/health?token=private-query-value")
       .set("Authorization", "Bearer super-secret-token")
       .set("Cookie", "session=private-cookie")
@@ -173,5 +212,52 @@ describe("middleware", () => {
     expect(logs).toContain('"url":"/api/health"');
     expect(logs).toContain('"requestId":"privacy-test"');
     expect(logs).toContain('"statusCode":200');
+  });
+
+  it("does not log multipart extraction secrets, text, form values, or output values", async () => {
+    const stream = new MemoryLogStream();
+    const logger = pino({ level: "info" }, stream);
+    const response = await request(
+      createApp({
+        environment: testEnvironment,
+        extractionService: createFakeExtractionService(),
+        logger,
+      }),
+    )
+      .post("/api/extract?token=private-query-value")
+      .set("Authorization", "Bearer private-bearer-token")
+      .set("Cookie", "session=private-cookie")
+      .set("X-Api-Key", "private-api-key")
+      .set("X-Groq-Api-Key", "private-groq-key")
+      .set("X-Request-Id", "multipart-privacy-test")
+      .field("schemaType", "job-application")
+      .attach(
+        "file",
+        await createTestPdf([
+          "Alex Morgan\nalex@example.test\nPosition Applied For: Product Analyst",
+        ]),
+        { contentType: "application/pdf", filename: "sensitive-name.pdf" },
+      )
+      .expect(200);
+
+    await new Promise((resolve) => {
+      setImmediate(resolve);
+    });
+
+    const logs = stream.entries.join("");
+
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(logs).toContain('"method":"POST"');
+    expect(logs).toContain('"url":"/api/extract"');
+    expect(logs).not.toContain("private-bearer-token");
+    expect(logs).not.toContain("private-cookie");
+    expect(logs).not.toContain("private-api-key");
+    expect(logs).not.toContain("private-groq-key");
+    expect(logs).not.toContain("private-query-value");
+    expect(logs).not.toContain("Alex Morgan");
+    expect(logs).not.toContain("alex@example.test");
+    expect(logs).not.toContain("job-application");
+    expect(logs).not.toContain("Product Analyst");
+    expect(logs).not.toContain("sensitive-name.pdf");
   });
 });

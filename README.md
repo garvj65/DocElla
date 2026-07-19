@@ -1,8 +1,8 @@
 # DocElla
 
-DocElla is planned as a PDF-to-form workflow application. This repository currently contains the initial TypeScript monorepo scaffold, shared document definitions, and a backend API foundation.
+DocElla is planned as a PDF-to-form workflow application. This repository currently contains the TypeScript monorepo scaffold, shared document definitions, a backend API foundation, and the first backend PDF extraction slice.
 
-OCR, authentication, PDF extraction, and Groq integration are not implemented yet.
+OCR, authentication, frontend upload UI, grounding, confidence review, and PDF generation are not implemented yet.
 
 ## Prerequisites
 
@@ -20,7 +20,17 @@ npm install
 
 Copy `.env.example` to `.env` when local environment variables are needed. Do not commit real `.env` files.
 
-The backend requires `FRONTEND_ORIGIN`, for example `http://localhost:5173`. `NODE_ENV` defaults to `development`, `PORT` defaults to `3001`, and `LOG_LEVEL` defaults to `info`.
+The backend requires `FRONTEND_ORIGIN`, for example `http://localhost:5173`, and `GROQ_API_KEY`. `NODE_ENV` defaults to `development`, `PORT` defaults to `3001`, and `LOG_LEVEL` defaults to `info`.
+
+Extraction configuration:
+
+- `GROQ_API_KEY`: required Groq API key. Never commit real keys.
+- `GROQ_MODEL`: strict structured-output model. Defaults to `openai/gpt-oss-20b`; also supports `openai/gpt-oss-120b`.
+- `GROQ_TIMEOUT_MS`: provider timeout, default `30000`.
+- `GROQ_MAX_RETRIES`: Groq SDK transient-error retries, default `1`.
+- `GROQ_MAX_INPUT_CHARACTERS`: maximum normalized extracted text sent to the provider, default `30000`.
+- `EXTRACT_RATE_LIMIT_WINDOW_MS`: extraction route rate-limit window, default `60000`.
+- `EXTRACT_RATE_LIMIT_MAX`: extraction requests per window, default `10`.
 
 ## Development
 
@@ -46,6 +56,7 @@ Available endpoints:
 - `GET /api/health`
 - `GET /api/schemas`
 - `GET /api/schemas/:schemaType`
+- `POST /api/extract`
 
 Successful JSON responses use this envelope:
 
@@ -76,9 +87,35 @@ Error responses use this envelope:
 
 Every response includes `X-Request-Id`, and the same value appears in `meta.requestId`. Clients may provide `X-Request-Id` when it contains only letters, numbers, `.`, `_`, or `-` and is 1-128 characters.
 
-Backend logs are structured JSON and intentionally exclude request bodies, response bodies, authorization and cookie headers, API-key headers, query strings, extracted values, and form values.
+### Extraction endpoint
 
-PDF uploads, PDF parsing, Groq extraction, authentication, persistence, queues, and PDF generation are not implemented yet.
+`POST /api/extract` accepts `multipart/form-data` with:
+
+- `file`: one PDF file
+- `schemaType`: a registered schema ID
+
+Supported schemas:
+
+- `job-application`
+- `basic-invoice`
+
+Limits and behavior:
+
+- One PDF per request
+- 10 MiB maximum upload size
+- 50 page maximum
+- Text-based PDFs only
+- OCR is not supported
+- Maximum normalized provider input is controlled by `GROQ_MAX_INPUT_CHARACTERS`
+- Extraction responses include `Cache-Control: no-store`
+
+Successful extraction responses use the standard success envelope with `schemaType`, `documentVersion`, and a `values` object. Every schema field is present, missing values are `null`, and no PDF text, filename, prompts, confidence values, or provider internals are returned.
+
+Common extraction error codes include `UPLOAD_REQUIRED`, `UPLOAD_TOO_LARGE`, `UPLOAD_INVALID_TYPE`, `PDF_INVALID`, `PDF_PASSWORD_PROTECTED`, `PDF_NO_EXTRACTABLE_TEXT`, `PDF_PAGE_LIMIT_EXCEEDED`, `PDF_TEXT_LIMIT_EXCEEDED`, `PDF_PARSE_TIMEOUT`, `EXTRACTION_RATE_LIMITED`, `EXTRACTION_PROVIDER_TIMEOUT`, `EXTRACTION_PROVIDER_RATE_LIMITED`, `EXTRACTION_PROVIDER_UNAVAILABLE`, `EXTRACTION_PROVIDER_REJECTED`, and `EXTRACTION_OUTPUT_INVALID`.
+
+Backend logs are structured JSON and intentionally exclude request bodies, response bodies, authorization and cookie headers, API-key headers, query strings, PDF bytes, extracted text, prompts, extracted values, and form values. Uploaded PDFs stay in memory only and are never persisted.
+
+PDF uploads, PDF parsing, and Groq extraction are backend-only in this slice. Authentication, persistence, queues, frontend upload UI, grounding, confidence review, OCR, and PDF generation are not implemented yet. Scanned PDFs fail with `PDF_NO_EXTRACTABLE_TEXT`.
 
 ## Repository Gates
 
