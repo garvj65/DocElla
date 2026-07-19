@@ -174,15 +174,32 @@ describe("Groq structured extractor", () => {
   });
 
   it("maps empty content, invalid JSON, and schema-invalid JSON safely", async () => {
-    for (const content of [null, "{", "{}"] as const) {
+    const cases = [
+      { content: null, stage: "missing_content" },
+      { content: "{", stage: "invalid_json" },
+      { content: "{}", stage: "schema_validation" },
+    ] as const;
+
+    for (const { content, stage } of cases) {
       const extractor = createGroqStructuredExtractor({
         client: createClient([content, content]).client,
         environment: testEnvironment,
         logger: createSilentLogger(),
       });
-      await expect(
-        extractor.extract({ documentDefinition: definition, documentText: "text" }),
-      ).rejects.toMatchObject({ code: "EXTRACTION_OUTPUT_INVALID" });
+      try {
+        await extractor.extract({ documentDefinition: definition, documentText: "text" });
+        throw new Error("Expected extraction to fail.");
+      } catch (error) {
+        expect(error).toMatchObject({
+          code: "EXTRACTION_OUTPUT_INVALID",
+          logCause: false,
+          safeLogContext: {
+            outputFailureStage: stage,
+            providerMappedCode: "EXTRACTION_OUTPUT_INVALID",
+            providerModel: "openai/gpt-oss-20b",
+          },
+        });
+      }
     }
   });
 

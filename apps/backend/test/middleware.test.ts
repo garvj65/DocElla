@@ -7,7 +7,11 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import { AppError } from "../src/errors/app-error.js";
 import { ERROR_CODES } from "../src/errors/error-codes.js";
-import { mapProviderError } from "../src/extraction/groq-structured-extractor.js";
+import type { DocumentExtractionService } from "../src/extraction/extraction-types.js";
+import {
+  createGroqStructuredExtractor,
+  mapProviderError,
+} from "../src/extraction/groq-structured-extractor.js";
 import { errorHandler } from "../src/middleware/error-handler.js";
 import { requestContext } from "../src/middleware/request-context.js";
 import { createTestPdf } from "./support/create-test-pdf.js";
@@ -29,6 +33,42 @@ class MemoryLogStream extends Writable {
     callback();
   }
 }
+
+const createInvalidOutputExtractionService = (
+  contents: readonly (string | null)[],
+): DocumentExtractionService => {
+  let callIndex = 0;
+  const extractor = createGroqStructuredExtractor({
+    client: {
+      chat: {
+        completions: {
+          create: async () => {
+            const content = contents[Math.min(callIndex, contents.length - 1)] ?? null;
+            callIndex += 1;
+            return { choices: [{ message: { content } }] };
+          },
+        },
+      },
+    },
+    environment: testEnvironment,
+    logger: createSilentLogger(),
+  });
+
+  return {
+    extract: async ({ documentDefinition, signal }) => ({
+      documentVersion: documentDefinition.version,
+      extractedCharacters: 64,
+      model: testEnvironment.groqModel,
+      pageCount: 1,
+      schemaType: documentDefinition.id,
+      values: await extractor.extract({
+        documentDefinition,
+        documentText: "Synthetic PDF text",
+        signal,
+      }),
+    }),
+  };
+};
 
 describe("middleware", () => {
   it("allows the configured CORS origin", async () => {
@@ -305,6 +345,102 @@ describe("middleware", () => {
     expect(logs).not.toContain("Alex Morgan");
     expect(logs).not.toContain("alex@example.test");
     expect(responseBody).not.toContain("PRIVATE_PROVIDER_BODY");
+    expect(responseBody).not.toContain("Alex Morgan");
+    expect(responseBody).not.toContain("alex@example.test");
+  });
+
+  it("does not log malformed completion content or JSON parser details", async () => {
+    const stream = new MemoryLogStream();
+    const logger = pino({ level: "info" }, stream);
+    const sentinel = "PRIVATE_INVALID_COMPLETION Alex Morgan alex@example.test";
+    const response = await request(
+      createApp({
+        environment: testEnvironment,
+        extractionService: createInvalidOutputExtractionService([sentinel, sentinel]),
+        logger,
+      }),
+    )
+      .post("/api/extract")
+      .field("schemaType", "job-application")
+      .attach("file", await createTestPdf(), {
+        contentType: "application/pdf",
+        filename: "synthetic.pdf",
+      })
+      .expect(502);
+
+    await new Promise((resolve) => {
+      setImmediate(resolve);
+    });
+
+    const logs = stream.entries.join("");
+    const responseBody = JSON.stringify(response.body);
+
+    expect(response.body.error.code).toBe("EXTRACTION_OUTPUT_INVALID");
+    expect(logs).toContain('"outputFailureStage":"invalid_json"');
+    expect(logs).toContain('"providerMappedCode":"EXTRACTION_OUTPUT_INVALID"');
+    expect(logs).toContain('"providerModel":"openai/gpt-oss-20b"');
+    expect(logs).not.toContain("PRIVATE_INVALID_COMPLETION");
+    expect(logs).not.toContain("Alex Morgan");
+    expect(logs).not.toContain("alex@example.test");
+    expect(logs).not.toContain("Unexpected token");
+    expect(responseBody).not.toContain("PRIVATE_INVALID_COMPLETION");
+    expect(responseBody).not.toContain("Alex Morgan");
+    expect(responseBody).not.toContain("alex@example.test");
+  });
+
+  it("does not log schema-invalid completion values or Zod details", async () => {
+    const stream = new MemoryLogStream();
+    const logger = pino({ level: "info" }, stream);
+    const invalidValues = JSON.stringify({
+      additionalNotes: null,
+      address: null,
+      availableStartDate: null,
+      currentEmployer: null,
+      currentJobTitle: null,
+      email: "PRIVATE_SCHEMA_INVALID_EMAIL alex@example.test",
+      fullName: "PRIVATE_SCHEMA_INVALID_NAME Alex Morgan",
+      highestEducation: null,
+      phone: null,
+      positionAppliedFor: "Product Analyst",
+      salaryExpectation: null,
+      yearsOfExperience: null,
+    });
+    const response = await request(
+      createApp({
+        environment: testEnvironment,
+        extractionService: createInvalidOutputExtractionService([invalidValues, invalidValues]),
+        logger,
+      }),
+    )
+      .post("/api/extract")
+      .field("schemaType", "job-application")
+      .attach("file", await createTestPdf(), {
+        contentType: "application/pdf",
+        filename: "synthetic.pdf",
+      })
+      .expect(502);
+
+    await new Promise((resolve) => {
+      setImmediate(resolve);
+    });
+
+    const logs = stream.entries.join("");
+    const responseBody = JSON.stringify(response.body);
+
+    expect(response.body.error).toEqual({
+      code: "EXTRACTION_OUTPUT_INVALID",
+      message: "The extraction provider returned invalid output.",
+    });
+    expect(logs).toContain('"outputFailureStage":"schema_validation"');
+    expect(logs).toContain('"providerMappedCode":"EXTRACTION_OUTPUT_INVALID"');
+    expect(logs).toContain('"providerModel":"openai/gpt-oss-20b"');
+    expect(logs).not.toContain("ZodError");
+    expect(logs).not.toContain("PRIVATE_SCHEMA_INVALID_EMAIL");
+    expect(logs).not.toContain("PRIVATE_SCHEMA_INVALID_NAME");
+    expect(logs).not.toContain("Alex Morgan");
+    expect(logs).not.toContain("alex@example.test");
+    expect(responseBody).not.toContain("PRIVATE_SCHEMA_INVALID_EMAIL");
+    expect(responseBody).not.toContain("PRIVATE_SCHEMA_INVALID_NAME");
     expect(responseBody).not.toContain("Alex Morgan");
     expect(responseBody).not.toContain("alex@example.test");
   });

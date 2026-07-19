@@ -248,40 +248,45 @@ const throwIfAborted = (signal: AbortSignal | undefined): void => {
   }
 };
 
+const invalidOutputError = (
+  environment: Environment,
+  failureStage: "missing_content" | "invalid_json" | "schema_validation",
+  cause?: unknown,
+): AppError =>
+  new AppError({
+    cause,
+    code: ERROR_CODES.EXTRACTION_OUTPUT_INVALID,
+    logCause: false,
+    message: "The extraction provider returned invalid output.",
+    safeLogContext: {
+      outputFailureStage: failureStage,
+      providerMappedCode: ERROR_CODES.EXTRACTION_OUTPUT_INVALID,
+      providerModel: environment.groqModel,
+    },
+    status: 502,
+  });
+
 const parseProviderContent = (
+  environment: Environment,
   content: string | null | undefined,
   documentDefinition: DocumentDefinition,
 ): ExtractionData => {
   if (content === undefined || content === null || content.trim().length === 0) {
-    throw new AppError({
-      code: ERROR_CODES.EXTRACTION_OUTPUT_INVALID,
-      message: "The extraction provider returned invalid output.",
-      status: 502,
-    });
+    throw invalidOutputError(environment, "missing_content");
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);
   } catch (error) {
-    throw new AppError({
-      cause: error,
-      code: ERROR_CODES.EXTRACTION_OUTPUT_INVALID,
-      message: "The extraction provider returned invalid output.",
-      status: 502,
-    });
+    throw invalidOutputError(environment, "invalid_json", error);
   }
 
   const schema = buildExtractionSchema(documentDefinition);
   const result = schema.safeParse(parsed);
 
   if (!result.success) {
-    throw new AppError({
-      cause: result.error,
-      code: ERROR_CODES.EXTRACTION_OUTPUT_INVALID,
-      message: "The extraction provider returned invalid output.",
-      status: 502,
-    });
+    throw invalidOutputError(environment, "schema_validation", result.error);
   }
 
   return result.data;
@@ -321,7 +326,7 @@ export const createGroqStructuredExtractor = ({
       }
 
       try {
-        return parseProviderContent(message?.content, documentDefinition);
+        return parseProviderContent(environment, message?.content, documentDefinition);
       } catch (error) {
         if (attempt === 0 && error instanceof AppError) {
           logger.warn(
@@ -340,10 +345,6 @@ export const createGroqStructuredExtractor = ({
       }
     }
 
-    throw new AppError({
-      code: ERROR_CODES.EXTRACTION_OUTPUT_INVALID,
-      message: "The extraction provider returned invalid output.",
-      status: 502,
-    });
+    throw invalidOutputError(environment, "schema_validation");
   },
 });
