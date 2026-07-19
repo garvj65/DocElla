@@ -38,8 +38,18 @@ if (typeof groundingNormalizationModule.normalizeMinimal !== "function") {
   throw new TypeError("Expected dist/grounding/normalization.js to export normalizeMinimal.");
 }
 
+if (typeof groundingNormalizationModule.extractCanonicalEmails !== "function") {
+  throw new TypeError("Expected dist/grounding/normalization.js to export extractCanonicalEmails.");
+}
+
 if (typeof textSimilarityModule.fuzzyTokenWindowMatch !== "function") {
   throw new TypeError(
     "Expected dist/grounding/text-similarity.js to export fuzzyTokenWindowMatch.",
+  );
+}
+
+if (typeof textSimilarityModule.containsTokenSequence !== "function") {
+  throw new TypeError(
+    "Expected dist/grounding/text-similarity.js to export containsTokenSequence.",
   );
 }

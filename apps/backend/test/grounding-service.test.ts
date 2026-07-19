@@ -88,6 +88,23 @@ const ground = (documentText: string, values: Record<string, unknown>) =>
     values,
   });
 
+const baseValues = {
+  amount: null,
+  company: null,
+  date: null,
+  email: null,
+  name: null,
+  notes: null,
+  phone: null,
+  status: null,
+};
+
+const emailReview = (documentText: string, email: string) =>
+  ground(documentText, { ...baseValues, email }).fields.email;
+
+const dateReview = (documentText: string, date: string) =>
+  ground(documentText, { ...baseValues, date }).fields.date;
+
 describe("grounding service", () => {
   it("grounds exact, normalized, email, phone, date, number, and select values", () => {
     const summary = ground(
@@ -168,6 +185,56 @@ describe("grounding service", () => {
     expect(summary.fields.phone?.matchType).toBe("none");
     expect(summary.fields.date?.matchType).toBe("none");
     expect(summary.fields.amount?.matchType).toBe("none");
+  });
+
+  it("requires complete canonical email matches", () => {
+    expect(emailReview("Email: alex@example.test", "alex@example.test")).toEqual({
+      confidence: 0.9,
+      matchType: "normalized",
+      status: "verified",
+    });
+    expect(emailReview("Email: ALEX@example.test", "alex@example.test")?.matchType).toBe(
+      "normalized",
+    );
+    expect(emailReview("Email: alex @ example.test", "alex@example.test")?.matchType).toBe(
+      "normalized",
+    );
+    expect(emailReview("Email: alex@example . test", "alex@example.test")?.matchType).toBe(
+      "normalized",
+    );
+    expect(
+      emailReview("Email: alex . smith @ example . test", "alex.smith@example.test"),
+    ).toMatchObject({
+      matchType: "normalized",
+      status: "verified",
+    });
+
+    expect(emailReview("Email: other@example.test", "alex@example.test")?.matchType).toBe("none");
+    expect(emailReview("Email: notalex@example.test", "alex@example.test")?.matchType).toBe("none");
+    expect(emailReview("Email: alex@example.testing", "alex@example.test")?.matchType).toBe("none");
+    expect(emailReview("Email: alex@example.testimonial", "alex@example.test")?.matchType).toBe(
+      "none",
+    );
+    expect(emailReview("Email: alex@example", "alex@example.test")?.matchType).toBe("none");
+    expect(emailReview("Email: alex example test", "alex@example.test")?.matchType).toBe("none");
+  });
+
+  it("requires complete normalized token sequences for date matches", () => {
+    expect(dateReview("Issued 2026-07-19", "2026-07-19")).toMatchObject({
+      confidence: 0.9,
+      matchType: "normalized",
+      status: "verified",
+    });
+    expect(dateReview("Issued July 19 2026", "2026-07-19")?.matchType).toBe("normalized");
+    expect(dateReview("Issued July 19th 2026", "2026-07-19")?.matchType).toBe("normalized");
+    expect(dateReview("Issued 19/07/2026", "2026-07-19")?.matchType).toBe("normalized");
+    expect(dateReview("Issued 04/03/2026", "2026-03-04")?.matchType).toBe("none");
+    expect(dateReview("Issued 2026-02-29", "2026-02-29")?.matchType).toBe("none");
+
+    expect(dateReview("Reference 2026-07-1901", "2026-07-19")?.matchType).toBe("none");
+    expect(dateReview("Reference 2026-07-190", "2026-07-19")?.matchType).toBe("none");
+    expect(dateReview("Issued July 190 2026", "2026-07-19")?.matchType).toBe("none");
+    expect(dateReview("Issued 2026 07 19", "2026-07-19")?.matchType).toBe("normalized");
   });
 
   it("handles missing values, confidence, counts, and warnings deterministically", () => {

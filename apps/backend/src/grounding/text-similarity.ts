@@ -5,6 +5,37 @@ export interface FuzzyMatchResult {
   readonly windowsExamined: number;
 }
 
+const splitNormalizedTokens = (value: string): readonly string[] =>
+  value.split(" ").filter(Boolean);
+
+export const containsTokenSequence = (
+  sourceSearchText: string,
+  candidateSearchText: string,
+): boolean => {
+  const sourceTokens = splitNormalizedTokens(sourceSearchText);
+  const candidateTokens = splitNormalizedTokens(candidateSearchText);
+
+  if (candidateTokens.length === 0 || candidateTokens.length > sourceTokens.length) {
+    return false;
+  }
+
+  for (let start = 0; start + candidateTokens.length <= sourceTokens.length; start += 1) {
+    let matches = true;
+    for (let offset = 0; offset < candidateTokens.length; offset += 1) {
+      if (sourceTokens[start + offset] !== candidateTokens[offset]) {
+        matches = false;
+        break;
+      }
+    }
+
+    if (matches) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 const countTokens = (tokens: readonly string[]): Map<string, number> => {
   const counts = new Map<string, number>();
   for (const token of tokens) {
@@ -38,7 +69,7 @@ export const fuzzyTokenWindowMatch = (
     return { matched: false, windowsExamined: 0 };
   }
 
-  const sourceTokens = sourceSearchText.split(" ").filter(Boolean);
+  const sourceTokens = splitNormalizedTokens(sourceSearchText);
   const candidateCounts = countTokens(candidateTokens);
   const minWindow = Math.max(1, candidateTokens.length - 2);
   const maxWindow = Math.min(sourceTokens.length, candidateTokens.length + 2);

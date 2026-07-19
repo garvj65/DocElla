@@ -4,16 +4,16 @@ import {
   buildDateCandidates,
   canonicalizeNumber,
   digitsOnly,
+  extractCanonicalEmails,
   extractNumericMentions,
   extractPhoneDigitSequences,
   normalizeEmail,
-  normalizeEmailSource,
   normalizeMinimal,
   normalizeSearch,
   numbersMatch,
   parseIsoDate,
 } from "./normalization.js";
-import { fuzzyTokenWindowMatch } from "./text-similarity.js";
+import { containsTokenSequence, fuzzyTokenWindowMatch } from "./text-similarity.js";
 import type {
   GroundingRequest,
   GroundingService,
@@ -80,7 +80,7 @@ const bestReview = (reviews: readonly FieldReview[]): FieldReview =>
   );
 
 const buildSourceRepresentations = (documentText: string): SourceRepresentations => ({
-  email: normalizeEmailSource(documentText),
+  canonicalEmails: extractCanonicalEmails(documentText),
   minimal: normalizeMinimal(documentText),
   numericMentions: extractNumericMentions(documentText),
   phoneDigitSequences: extractPhoneDigitSequences(documentText),
@@ -119,7 +119,7 @@ const matchEmail = (candidate: string, source: SourceRepresentations): FieldRevi
     return unmatchedReview;
   }
 
-  return source.email.includes(normalized) ? normalizedReview : unmatchedReview;
+  return source.canonicalEmails.includes(normalized) ? normalizedReview : unmatchedReview;
 };
 
 const matchPhone = (candidate: string, source: SourceRepresentations): FieldReview => {
@@ -140,7 +140,7 @@ const matchDate = (candidate: string, source: SourceRepresentations): FieldRevie
   }
 
   return buildDateCandidates(parsed).some((dateCandidate) =>
-    source.search.includes(normalizeSearch(dateCandidate)),
+    containsTokenSequence(source.search, normalizeSearch(dateCandidate)),
   )
     ? normalizedReview
     : unmatchedReview;

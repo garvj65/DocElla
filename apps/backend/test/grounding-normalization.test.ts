@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildDateCandidates,
   canonicalizeNumber,
+  extractCanonicalEmails,
   normalizeMinimal,
   normalizeSearch,
   parseIsoDate,
@@ -47,5 +48,18 @@ describe("grounding normalization", () => {
     expect(canonicalizeNumber("(1,250.50)")).toBe(-1250.5);
     expect(canonicalizeNumber(Number.NaN)).toBeUndefined();
     expect(canonicalizeNumber(Number.POSITIVE_INFINITY)).toBeUndefined();
+  });
+
+  it("extracts complete canonical email occurrences", () => {
+    expect(
+      extractCanonicalEmails(
+        "alex@example.test alex @ example . test alex.smith @ example.test alex . smith @ example . test",
+      ),
+    ).toEqual(["alex@example.test", "alex.smith@example.test"]);
+    expect(extractCanonicalEmails("notalex@example.test alex@example.testing")).toEqual([
+      "notalex@example.test",
+      "alex@example.testing",
+    ]);
+    expect(extractCanonicalEmails("partial alex@example")).toEqual([]);
   });
 });

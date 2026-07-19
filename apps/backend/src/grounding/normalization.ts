@@ -56,11 +56,13 @@ export const tokenizeSearch = (value: string): readonly string[] =>
 export const normalizeEmail = (value: string): string =>
   value.normalize("NFKC").toLowerCase().replace(/\s+/g, "");
 
-export const normalizeEmailSource = (value: string): string =>
-  value
-    .normalize("NFKC")
-    .toLowerCase()
-    .replace(/[^a-z0-9@._%+-]+/g, "");
+const EMAIL_SPAN_PATTERN =
+  /(?<![A-Za-z0-9._%+-])[A-Za-z0-9_%+-]+(?:\s*\.\s*[A-Za-z0-9_%+-]+)*\s*@\s*[A-Za-z0-9-]+(?:\s*\.\s*[A-Za-z0-9-]+)+(?![A-Za-z0-9._%+-])/g;
+
+export const extractCanonicalEmails = (source: string): readonly string[] => {
+  const matches = source.match(EMAIL_SPAN_PATTERN) ?? [];
+  return [...new Set(matches.map(normalizeEmail))];
+};
 
 export const digitsOnly = (value: string): string => value.replace(/\D/g, "");
 

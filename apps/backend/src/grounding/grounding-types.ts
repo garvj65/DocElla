@@ -29,7 +29,7 @@ export interface GroundingService {
 export interface SourceRepresentations {
   readonly minimal: string;
   readonly search: string;
-  readonly email: string;
+  readonly canonicalEmails: readonly string[];
   readonly phoneDigitSequences: readonly string[];
   readonly numericMentions: readonly number[];
 }
