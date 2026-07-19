@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import { AppError } from "../src/errors/app-error.js";
 import { ERROR_CODES } from "../src/errors/error-codes.js";
+import { mapProviderError } from "../src/extraction/groq-structured-extractor.js";
 import { errorHandler } from "../src/middleware/error-handler.js";
 import { requestContext } from "../src/middleware/request-context.js";
 import { createTestPdf } from "./support/create-test-pdf.js";
@@ -259,5 +260,52 @@ describe("middleware", () => {
     expect(logs).not.toContain("job-application");
     expect(logs).not.toContain("Product Analyst");
     expect(logs).not.toContain("sensitive-name.pdf");
+  });
+
+  it("logs only safe provider-error metadata for extraction failures", async () => {
+    const stream = new MemoryLogStream();
+    const logger = pino({ level: "info" }, stream);
+    const providerError = new Error(
+      "PRIVATE_PROVIDER_BODY Alex Morgan alex@example.test",
+    ) as Error & {
+      status: number;
+    };
+    providerError.name = "ProviderBadRequestError";
+    providerError.status = 400;
+    const response = await request(
+      createApp({
+        environment: testEnvironment,
+        extractionService: {
+          extract: async () => {
+            throw mapProviderError(testEnvironment, providerError);
+          },
+        },
+        logger,
+      }),
+    )
+      .post("/api/extract")
+      .field("schemaType", "job-application")
+      .attach("file", await createTestPdf(), {
+        contentType: "application/pdf",
+        filename: "synthetic.pdf",
+      })
+      .expect(502);
+
+    await new Promise((resolve) => {
+      setImmediate(resolve);
+    });
+
+    const logs = stream.entries.join("");
+    const responseBody = JSON.stringify(response.body);
+
+    expect(logs).toContain('"providerErrorClass":"ProviderBadRequestError"');
+    expect(logs).toContain('"providerHttpStatus":400');
+    expect(logs).toContain('"providerMappedCode":"EXTRACTION_PROVIDER_UNAVAILABLE"');
+    expect(logs).not.toContain("PRIVATE_PROVIDER_BODY");
+    expect(logs).not.toContain("Alex Morgan");
+    expect(logs).not.toContain("alex@example.test");
+    expect(responseBody).not.toContain("PRIVATE_PROVIDER_BODY");
+    expect(responseBody).not.toContain("Alex Morgan");
+    expect(responseBody).not.toContain("alex@example.test");
   });
 });

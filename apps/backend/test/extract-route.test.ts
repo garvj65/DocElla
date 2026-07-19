@@ -1,10 +1,13 @@
 import { getDocumentDefinition } from "@docella/schemas";
+import { EventEmitter } from "node:events";
+import type { Request, Response } from "express";
 import { describe, expect, it } from "vitest";
 import request from "supertest";
 
 import { AppError } from "../src/errors/app-error.js";
 import { ERROR_CODES } from "../src/errors/error-codes.js";
 import { createApp } from "../src/app.js";
+import { bindExtractionCancellation } from "../src/routes/extract.js";
 import { createTestPdf } from "./support/create-test-pdf.js";
 import { createSilentLogger, createTestApp, testEnvironment } from "./support/create-test-app.js";
 import { createFakeExtractionService } from "./support/fake-extraction-service.js";
@@ -171,5 +174,70 @@ describe("POST /api/extract", () => {
     expect(limited.body.error.code).toBe("EXTRACTION_RATE_LIMITED");
     expect(limited.headers["cache-control"]).toBe("no-store");
     expect(service.calls).toHaveLength(1);
+  });
+
+  it("passes the same AbortSignal to the extraction service and leaves it active on success", async () => {
+    let observedSignal: AbortSignal | undefined;
+    const service = {
+      extract: async ({ documentDefinition, signal }) => {
+        observedSignal = signal;
+        return {
+          documentVersion: documentDefinition.version,
+          extractedCharacters: 84,
+          model: testEnvironment.groqModel,
+          pageCount: 1,
+          schemaType: documentDefinition.id,
+          values: jobValues,
+        };
+      },
+    };
+
+    await request(createTestApp(service))
+      .post("/api/extract")
+      .field("schemaType", "job-application")
+      .attach("file", await createTestPdf(), {
+        contentType: "application/pdf",
+        filename: "synthetic.pdf",
+      })
+      .expect(200);
+
+    expect(observedSignal).toBeInstanceOf(AbortSignal);
+    expect(observedSignal?.aborted).toBe(false);
+  });
+
+  it("aborts on premature response close and ignores normal completion", () => {
+    const requestEmitter = new EventEmitter() as EventEmitter & {
+      readonly off: EventEmitter["off"];
+      readonly once: EventEmitter["once"];
+    };
+    const responseEmitter = Object.assign(new EventEmitter(), {
+      destroyed: false,
+      writableEnded: false,
+    }) as EventEmitter & Response;
+    const cancellation = bindExtractionCancellation(
+      requestEmitter as unknown as Request,
+      responseEmitter,
+    );
+
+    responseEmitter.emit("close");
+
+    expect(cancellation.signal.aborted).toBe(true);
+    expect(cancellation.closedBeforeCompletion()).toBe(true);
+    cancellation.cleanup();
+
+    const completedResponse = Object.assign(new EventEmitter(), {
+      destroyed: false,
+      writableEnded: true,
+    }) as EventEmitter & Response;
+    const completed = bindExtractionCancellation(
+      requestEmitter as unknown as Request,
+      completedResponse,
+    );
+
+    completedResponse.emit("close");
+
+    expect(completed.signal.aborted).toBe(false);
+    expect(completed.closedBeforeCompletion()).toBe(false);
+    completed.cleanup();
   });
 });

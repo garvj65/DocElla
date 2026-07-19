@@ -1,7 +1,9 @@
 import { getDocumentDefinition } from "@docella/schemas";
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
+import type { Logger } from "pino";
 
 import { AppError } from "../errors/app-error.js";
+import { isAbortLikeError } from "../errors/extraction-aborted-error.js";
 import { ERROR_CODES } from "../errors/error-codes.js";
 import { sendSuccess } from "../http/responses.js";
 import { createExtractionRateLimit } from "../middleware/extraction-rate-limit.js";
@@ -13,6 +15,7 @@ import type { ExtractionLimits } from "../config/extraction-limits.js";
 export interface CreateExtractRouterOptions {
   readonly environment: Environment;
   readonly extractionService: DocumentExtractionService;
+  readonly logger: Logger;
   readonly uploadLimits?: Partial<ExtractionLimits>;
 }
 
@@ -38,9 +41,46 @@ const parseSchemaType = (body: unknown): string => {
   return value.trim();
 };
 
+export interface ExtractionCancellation {
+  readonly cleanup: () => void;
+  readonly closedBeforeCompletion: () => boolean;
+  readonly signal: AbortSignal;
+}
+
+export const bindExtractionCancellation = (
+  request: Request,
+  response: Response,
+): ExtractionCancellation => {
+  const abortController = new AbortController();
+  let closedBeforeCompletion = false;
+  const abort = (): void => {
+    abortController.abort();
+  };
+  const abortOnClose = (): void => {
+    if (!response.writableEnded) {
+      closedBeforeCompletion = true;
+      abortController.abort();
+    }
+  };
+  const cleanup = (): void => {
+    request.off("aborted", abort);
+    response.off("close", abortOnClose);
+  };
+
+  request.once("aborted", abort);
+  response.once("close", abortOnClose);
+
+  return {
+    cleanup,
+    closedBeforeCompletion: () => closedBeforeCompletion,
+    signal: abortController.signal,
+  };
+};
+
 export const createExtractRouter = ({
   environment,
   extractionService,
+  logger,
   uploadLimits,
 }: CreateExtractRouterOptions): Router => {
   const router = Router();
@@ -54,6 +94,8 @@ export const createExtractRouter = ({
     createExtractionRateLimit(environment),
     createPdfUploadMiddleware(uploadLimits === undefined ? {} : { limits: uploadLimits }),
     async (request, response, next) => {
+      const cancellation = bindExtractionCancellation(request, response);
+
       try {
         const schemaType = parseSchemaType(request.body);
         const documentDefinition = getDocumentDefinition(schemaType);
@@ -79,7 +121,25 @@ export const createExtractRouter = ({
         const result = await extractionService.extract({
           documentDefinition,
           pdfBytes: new Uint8Array(file.buffer),
+          signal: cancellation.signal,
         });
+
+        if (
+          cancellation.signal.aborted ||
+          cancellation.closedBeforeCompletion() ||
+          response.writableEnded ||
+          response.destroyed
+        ) {
+          logger.info(
+            {
+              event: "extraction_client_disconnected",
+              path: request.path,
+              requestId: request.requestId,
+            },
+            "Extraction response skipped after client disconnect",
+          );
+          return;
+        }
 
         sendSuccess(
           response,
@@ -96,7 +156,25 @@ export const createExtractRouter = ({
           },
         );
       } catch (error) {
+        if (
+          cancellation.signal.aborted ||
+          cancellation.closedBeforeCompletion() ||
+          isAbortLikeError(error)
+        ) {
+          logger.info(
+            {
+              event: "extraction_cancelled",
+              path: request.path,
+              requestId: request.requestId,
+            },
+            "Extraction cancelled",
+          );
+          return;
+        }
+
         next(error);
+      } finally {
+        cancellation.cleanup();
       }
     },
   );

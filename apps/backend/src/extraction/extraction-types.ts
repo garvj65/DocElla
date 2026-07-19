@@ -4,6 +4,7 @@ export interface PdfTextExtractionOptions {
   readonly maxInputCharacters: number;
   readonly maxPages?: number;
   readonly minExtractedNonWhitespaceCharacters?: number;
+  readonly signal?: AbortSignal;
   readonly timeoutMs?: number;
 }
 
@@ -23,6 +24,7 @@ export interface PdfTextExtractor {
 export interface StructuredExtractionRequest {
   readonly documentDefinition: DocumentDefinition;
   readonly documentText: string;
+  readonly signal?: AbortSignal;
 }
 
 export interface StructuredExtractor {
@@ -32,6 +34,7 @@ export interface StructuredExtractor {
 export interface DocumentExtractionRequest {
   readonly documentDefinition: DocumentDefinition;
   readonly pdfBytes: Uint8Array;
+  readonly signal?: AbortSignal;
 }
 
 export interface DocumentExtractionResult {

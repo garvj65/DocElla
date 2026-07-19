@@ -2,8 +2,10 @@ import {
   APIConnectionError,
   APIConnectionTimeoutError,
   APIError,
+  APIUserAbortError,
   AuthenticationError,
   BadRequestError,
+  PermissionDeniedError,
   RateLimitError,
 } from "groq-sdk";
 import {
@@ -18,8 +20,11 @@ import type { Logger } from "pino";
 import type { Environment } from "../config/environment.js";
 import { AppError } from "../errors/app-error.js";
 import { ERROR_CODES } from "../errors/error-codes.js";
-import { buildExtractionPrompt } from "./prompt.js";
+import { ExtractionAbortedError, isAbortLikeError } from "../errors/extraction-aborted-error.js";
+import { buildExtractionSystemInstruction, buildExtractionUserMessage } from "./prompt.js";
 import type { StructuredExtractionRequest, StructuredExtractor } from "./extraction-types.js";
+
+const MAX_COMPLETION_TOKENS = 2048 as const;
 
 interface GroqMessage {
   readonly content?: string | null;
@@ -35,7 +40,10 @@ interface GroqCompletion {
 }
 
 export interface GroqChatCompletions {
-  readonly create: (request: GroqCompletionCreateRequest) => Promise<GroqCompletion>;
+  readonly create: (
+    request: GroqCompletionCreateRequest,
+    options?: GroqRequestOptions,
+  ) => Promise<GroqCompletion>;
 }
 
 export interface GroqChatClient {
@@ -45,6 +53,7 @@ export interface GroqChatClient {
 }
 
 export interface GroqCompletionCreateRequest {
+  readonly max_completion_tokens: typeof MAX_COMPLETION_TOKENS;
   readonly messages: readonly GroqCompletionMessage[];
   readonly model: string;
   readonly response_format: {
@@ -55,7 +64,12 @@ export interface GroqCompletionCreateRequest {
       readonly strict: true;
     };
   };
+  readonly stream: false;
   readonly temperature: 0;
+}
+
+export interface GroqRequestOptions {
+  readonly signal?: AbortSignal;
 }
 
 interface GroqCompletionMessage {
@@ -70,9 +84,11 @@ export interface CreateGroqStructuredExtractorOptions {
 }
 
 const safeSchemaName = (documentDefinition: DocumentDefinition): string =>
-  `${documentDefinition.id.replace(/[^A-Za-z0-9_-]/g, "_")}_v${String(documentDefinition.version)}`;
+  `docella_${documentDefinition.id.replace(/[^A-Za-z0-9_]/g, "_")}_v${String(
+    documentDefinition.version,
+  )}`;
 
-const buildRequest = (
+export const buildGroqCompletionRequest = (
   environment: Environment,
   documentDefinition: DocumentDefinition,
   documentText: string,
@@ -80,24 +96,15 @@ const buildRequest = (
 ): GroqCompletionCreateRequest => ({
   messages: [
     {
-      content:
-        "You extract structured data from text-based PDFs. Return valid JSON only. Use null for missing values.",
+      content: buildExtractionSystemInstruction(documentDefinition),
       role: "system",
     },
     {
-      content: [
-        buildExtractionPrompt(documentDefinition),
-        correction
-          ? "The previous response did not validate. Return corrected JSON that exactly matches the schema."
-          : "",
-        "Document text:",
-        documentText,
-      ]
-        .filter((line) => line.length > 0)
-        .join("\n\n"),
+      content: buildExtractionUserMessage(documentDefinition, documentText, correction),
       role: "user",
     },
   ],
+  max_completion_tokens: MAX_COMPLETION_TOKENS,
   model: environment.groqModel,
   response_format: {
     json_schema: {
@@ -107,13 +114,14 @@ const buildRequest = (
     },
     type: "json_schema",
   },
+  stream: false,
   temperature: 0,
 });
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null;
 
-const providerStatus = (error: unknown): number | undefined => {
+export const providerStatus = (error: unknown): number | undefined => {
   if (error instanceof APIError && typeof error.status === "number") {
     return error.status;
   }
@@ -125,60 +133,119 @@ const providerStatus = (error: unknown): number | undefined => {
   return undefined;
 };
 
-const mapProviderError = (error: unknown): AppError => {
+const providerClassName = (error: unknown): string =>
+  error instanceof Error ? error.name : "UnknownProviderError";
+
+const safeProviderContext = (
+  environment: Environment,
+  code: string,
+  error: unknown,
+): Readonly<Record<string, string | number | boolean>> => {
+  const status = providerStatus(error);
+  return status === undefined
+    ? {
+        providerErrorClass: providerClassName(error),
+        providerModel: environment.groqModel,
+        providerMappedCode: code,
+      }
+    : {
+        providerErrorClass: providerClassName(error),
+        providerHttpStatus: status,
+        providerModel: environment.groqModel,
+        providerMappedCode: code,
+      };
+};
+
+const providerAppError = (
+  environment: Environment,
+  error: unknown,
+  code: (typeof ERROR_CODES)[keyof typeof ERROR_CODES],
+  message: string,
+  status: number,
+): AppError =>
+  new AppError({
+    cause: error,
+    code,
+    logCause: false,
+    message,
+    safeLogContext: safeProviderContext(environment, code, error),
+    status,
+  });
+
+export const mapProviderError = (environment: Environment, error: unknown): AppError => {
   const status = providerStatus(error);
 
+  if (error instanceof APIUserAbortError || isAbortLikeError(error)) {
+    throw new ExtractionAbortedError();
+  }
+
   if (error instanceof APIConnectionTimeoutError) {
-    return new AppError({
-      cause: error,
-      code: ERROR_CODES.EXTRACTION_PROVIDER_TIMEOUT,
-      message: "The extraction provider timed out.",
-      status: 503,
-    });
+    return providerAppError(
+      environment,
+      error,
+      ERROR_CODES.EXTRACTION_PROVIDER_TIMEOUT,
+      "The extraction provider timed out.",
+      503,
+    );
   }
 
   if (error instanceof RateLimitError || status === 429) {
-    return new AppError({
-      cause: error,
-      code: ERROR_CODES.EXTRACTION_PROVIDER_RATE_LIMITED,
-      message: "The extraction provider is rate limited.",
-      status: 503,
-    });
+    return providerAppError(
+      environment,
+      error,
+      ERROR_CODES.EXTRACTION_PROVIDER_RATE_LIMITED,
+      "The extraction provider is rate limited.",
+      503,
+    );
   }
 
   if (error instanceof APIConnectionError || (status !== undefined && status >= 500)) {
-    return new AppError({
-      cause: error,
-      code: ERROR_CODES.EXTRACTION_PROVIDER_UNAVAILABLE,
-      message: "The extraction provider is unavailable.",
-      status: 503,
-    });
+    return providerAppError(
+      environment,
+      error,
+      ERROR_CODES.EXTRACTION_PROVIDER_UNAVAILABLE,
+      "The extraction provider is unavailable.",
+      503,
+    );
   }
 
-  if (error instanceof AuthenticationError || error instanceof BadRequestError) {
-    return new AppError({
-      cause: error,
-      code: ERROR_CODES.EXTRACTION_PROVIDER_UNAVAILABLE,
-      message: "The extraction provider rejected the request.",
-      status: 502,
-    });
+  if (
+    error instanceof AuthenticationError ||
+    error instanceof BadRequestError ||
+    error instanceof PermissionDeniedError
+  ) {
+    return providerAppError(
+      environment,
+      error,
+      ERROR_CODES.EXTRACTION_PROVIDER_UNAVAILABLE,
+      "The extraction provider rejected the request.",
+      502,
+    );
   }
 
   if (status !== undefined && status >= 400) {
-    return new AppError({
-      cause: error,
-      code: ERROR_CODES.EXTRACTION_PROVIDER_UNAVAILABLE,
-      message: "The extraction provider rejected the request.",
-      status: 502,
-    });
+    return providerAppError(
+      environment,
+      error,
+      ERROR_CODES.EXTRACTION_PROVIDER_UNAVAILABLE,
+      "The extraction provider rejected the request.",
+      502,
+    );
   }
 
-  return new AppError({
-    cause: error,
-    code: ERROR_CODES.EXTRACTION_PROVIDER_UNAVAILABLE,
-    message: "The extraction provider is unavailable.",
-    status: 503,
-  });
+  return providerAppError(
+    environment,
+    error,
+    ERROR_CODES.EXTRACTION_PROVIDER_UNAVAILABLE,
+    "The extraction provider is unavailable.",
+    503,
+  );
+};
+
+const throwIfAborted = (signal: AbortSignal | undefined): void => {
+  if (signal?.aborted === true) {
+    throw new ExtractionAbortedError();
+  }
 };
 
 const parseProviderContent = (
@@ -228,15 +295,19 @@ export const createGroqStructuredExtractor = ({
   extract: async ({
     documentDefinition,
     documentText,
+    signal,
   }: StructuredExtractionRequest): Promise<ExtractionData> => {
     for (const attempt of [0, 1] as const) {
       let completion: GroqCompletion;
       try {
+        throwIfAborted(signal);
         completion = await client.chat.completions.create(
-          buildRequest(environment, documentDefinition, documentText, attempt === 1),
+          buildGroqCompletionRequest(environment, documentDefinition, documentText, attempt === 1),
+          signal === undefined ? undefined : { signal },
         );
+        throwIfAborted(signal);
       } catch (error) {
-        throw mapProviderError(error);
+        throw mapProviderError(environment, error);
       }
 
       const message = completion.choices?.[0]?.message;
@@ -261,6 +332,7 @@ export const createGroqStructuredExtractor = ({
             },
             "Extraction provider output failed validation; retrying once",
           );
+          throwIfAborted(signal);
           continue;
         }
 

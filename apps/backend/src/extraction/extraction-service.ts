@@ -22,17 +22,38 @@ export const createDocumentExtractionService = ({
   extract: async ({
     documentDefinition,
     pdfBytes,
+    signal,
   }: DocumentExtractionRequest): Promise<DocumentExtractionResult> => {
-    const pdfText = await pdfTextExtractor.extract(pdfBytes, {
-      maxInputCharacters: environment.groqMaxInputCharacters,
-      maxPages: EXTRACTION_LIMITS.maxPages,
-      minExtractedNonWhitespaceCharacters: EXTRACTION_LIMITS.minExtractedNonWhitespaceCharacters,
-      timeoutMs: EXTRACTION_LIMITS.pdfParseTimeoutMs,
-    });
-    const values = await structuredExtractor.extract({
-      documentDefinition,
-      documentText: pdfText.text,
-    });
+    const pdfOptions =
+      signal === undefined
+        ? {
+            maxInputCharacters: environment.groqMaxInputCharacters,
+            maxPages: EXTRACTION_LIMITS.maxPages,
+            minExtractedNonWhitespaceCharacters:
+              EXTRACTION_LIMITS.minExtractedNonWhitespaceCharacters,
+            timeoutMs: EXTRACTION_LIMITS.pdfParseTimeoutMs,
+          }
+        : {
+            maxInputCharacters: environment.groqMaxInputCharacters,
+            maxPages: EXTRACTION_LIMITS.maxPages,
+            minExtractedNonWhitespaceCharacters:
+              EXTRACTION_LIMITS.minExtractedNonWhitespaceCharacters,
+            signal,
+            timeoutMs: EXTRACTION_LIMITS.pdfParseTimeoutMs,
+          };
+    const pdfText = await pdfTextExtractor.extract(pdfBytes, pdfOptions);
+    const structuredRequest =
+      signal === undefined
+        ? {
+            documentDefinition,
+            documentText: pdfText.text,
+          }
+        : {
+            documentDefinition,
+            documentText: pdfText.text,
+            signal,
+          };
+    const values = await structuredExtractor.extract(structuredRequest);
 
     return {
       documentVersion: documentDefinition.version,

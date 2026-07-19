@@ -60,8 +60,8 @@ export const createApp = ({
     "/api/extract",
     createExtractRouter(
       uploadLimits === undefined
-        ? { environment, extractionService }
-        : { environment, extractionService, uploadLimits },
+        ? { environment, extractionService, logger }
+        : { environment, extractionService, logger, uploadLimits },
     ),
   );
   app.use("/api/health", createHealthRouter());

@@ -5,17 +5,21 @@ import type {
 
 export interface FakeExtractionService extends DocumentExtractionService {
   readonly calls: readonly Uint8Array[];
+  readonly signals: readonly (AbortSignal | undefined)[];
 }
 
 export const createFakeExtractionService = (
   result: Omit<DocumentExtractionResult, "documentVersion" | "schemaType">,
 ): FakeExtractionService => {
   const calls: Uint8Array[] = [];
+  const signals: (AbortSignal | undefined)[] = [];
 
   return {
     calls,
-    extract: async ({ documentDefinition, pdfBytes }) => {
+    signals,
+    extract: async ({ documentDefinition, pdfBytes, signal }) => {
       calls.push(pdfBytes);
+      signals.push(signal);
       return {
         ...result,
         documentVersion: documentDefinition.version,
