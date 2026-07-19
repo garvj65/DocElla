@@ -118,6 +118,23 @@ describe("defineDocument", () => {
     ).toThrow(/duplicate template id "test-default"/);
   });
 
+  it("rejects invalid template ids", () => {
+    expect(() =>
+      defineDocument(
+        minimalDocument({
+          templates: [
+            {
+              id: "not a stable id",
+              label: "Default Test",
+              assetPath: "templates/test.pdf",
+              flattenByDefault: true,
+            },
+          ],
+        }),
+      ),
+    ).toThrow(/template id "not a stable id" must be a stable identifier/);
+  });
+
   it("rejects empty field and template lists", () => {
     expect(() => defineDocument(minimalDocument({ fields: [] }))).toThrow(/at least one field/);
     expect(() => defineDocument(minimalDocument({ templates: [] }))).toThrow(

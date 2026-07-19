@@ -59,6 +59,31 @@ const validateField = (documentId: string, field: FieldDefinition): void => {
   );
 };
 
+const freezeDocumentDefinition = <const TDocument extends DocumentDefinition>(
+  definition: TDocument,
+): TDocument => {
+  for (const field of definition.fields) {
+    if (field.kind === "select") {
+      for (const option of field.options) {
+        Object.freeze(option);
+      }
+
+      Object.freeze(field.options);
+    }
+
+    Object.freeze(field);
+  }
+
+  for (const template of definition.templates) {
+    Object.freeze(template);
+  }
+
+  Object.freeze(definition.fields);
+  Object.freeze(definition.templates);
+
+  return Object.freeze(definition);
+};
+
 export const defineDocument = <const TDocument extends DocumentDefinition>(
   definition: TDocument,
 ): TDocument => {
@@ -91,6 +116,12 @@ export const defineDocument = <const TDocument extends DocumentDefinition>(
 
   for (const template of definition.templates) {
     assertNotBlank(template.id, `Document "${definition.id}" has a template with an empty id.`);
+    if (!identifierPattern.test(template.id)) {
+      throw new Error(
+        `Document "${definition.id}" template id "${template.id}" must be a stable identifier.`,
+      );
+    }
+
     assertNotBlank(
       template.label,
       `Template "${definition.id}.${template.id}" must have a nonblank label.`,
@@ -114,5 +145,5 @@ export const defineDocument = <const TDocument extends DocumentDefinition>(
     (id) => `Document "${definition.id}" has duplicate template id "${id}".`,
   );
 
-  return definition;
+  return freezeDocumentDefinition(definition);
 };
