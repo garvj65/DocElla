@@ -1,0 +1,33 @@
+{
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n frontend,backend -c cyan,green \"npm run dev -w @docella/frontend\" \"npm run dev -w @docella/backend\"",
+    "build": "npm run build -w @docella/schemas && npm run build -w @docella/backend && npm run build -w @docella/frontend",
+    "typecheck": "npm run build -w @docella/schemas && npm run typecheck -w @docella/backend && npm run typecheck -w @docella/frontend",
+    "test": "npm run build -w @docella/schemas && npm test --workspaces",
+    "lint": "npm run build -w @docella/schemas && eslint .",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "clean": "node scripts/clean.mjs"
+  },
+  "engines": {
+    "node": ">=24.0.0 <25"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.31.0",
+    "@types/node": "^24.0.15",
+    "concurrently": "^9.2.0",
+    "eslint": "^9.31.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.3.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.37.0"
+  }
+}
