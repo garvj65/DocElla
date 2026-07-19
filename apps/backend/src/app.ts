@@ -9,16 +9,19 @@ import { createHttpLogger } from "./config/logger.js";
 import { AppError } from "./errors/app-error.js";
 import { ERROR_CODES } from "./errors/error-codes.js";
 import type { DocumentExtractionService } from "./extraction/extraction-types.js";
+import type { PdfGenerationService } from "./pdf-generation/pdf-generation-types.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { notFound } from "./middleware/not-found.js";
 import { requestContext } from "./middleware/request-context.js";
 import { createExtractRouter } from "./routes/extract.js";
+import { createGeneratePdfRouter } from "./routes/generate-pdf.js";
 import { createHealthRouter } from "./routes/health.js";
 import { createSchemaRouter } from "./routes/schemas.js";
 
 export interface CreateAppOptions {
   readonly environment: Environment;
   readonly extractionService: DocumentExtractionService;
+  readonly pdfGenerationService: PdfGenerationService;
   readonly logger: Logger;
   readonly uploadLimits?: Partial<ExtractionLimits>;
 }
@@ -26,6 +29,7 @@ export interface CreateAppOptions {
 export const createApp = ({
   environment,
   extractionService,
+  pdfGenerationService,
   logger,
   uploadLimits,
 }: CreateAppOptions): Express => {
@@ -63,6 +67,10 @@ export const createApp = ({
         ? { environment, extractionService, logger }
         : { environment, extractionService, logger, uploadLimits },
     ),
+  );
+  app.use(
+    "/api/generate-pdf",
+    createGeneratePdfRouter({ environment, logger, pdfGenerationService }),
   );
   app.use("/api/health", createHealthRouter());
   app.use("/api/schemas", createSchemaRouter());

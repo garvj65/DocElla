@@ -1,10 +1,11 @@
 import { getDocumentDefinition, type ExtractionWarning } from "@docella/schemas";
-import { Router, type Request, type Response } from "express";
+import { Router } from "express";
 import type { Logger } from "pino";
 
 import { AppError } from "../errors/app-error.js";
 import { isAbortLikeError } from "../errors/extraction-aborted-error.js";
 import { ERROR_CODES } from "../errors/error-codes.js";
+import { bindRequestCancellation } from "../http/request-cancellation.js";
 import { sendSuccess } from "../http/responses.js";
 import { createExtractionRateLimit } from "../middleware/extraction-rate-limit.js";
 import { createPdfUploadMiddleware, SCHEMA_TYPE_FIELD } from "../middleware/pdf-upload.js";
@@ -61,41 +62,7 @@ const parseSchemaType = (body: unknown): string => {
   return value.trim();
 };
 
-export interface ExtractionCancellation {
-  readonly cleanup: () => void;
-  readonly closedBeforeCompletion: () => boolean;
-  readonly signal: AbortSignal;
-}
-
-export const bindExtractionCancellation = (
-  request: Request,
-  response: Response,
-): ExtractionCancellation => {
-  const abortController = new AbortController();
-  let closedBeforeCompletion = false;
-  const abort = (): void => {
-    abortController.abort();
-  };
-  const abortOnClose = (): void => {
-    if (!response.writableEnded) {
-      closedBeforeCompletion = true;
-      abortController.abort();
-    }
-  };
-  const cleanup = (): void => {
-    request.off("aborted", abort);
-    response.off("close", abortOnClose);
-  };
-
-  request.once("aborted", abort);
-  response.once("close", abortOnClose);
-
-  return {
-    cleanup,
-    closedBeforeCompletion: () => closedBeforeCompletion,
-    signal: abortController.signal,
-  };
-};
+export const bindExtractionCancellation = bindRequestCancellation;
 
 export const createExtractRouter = ({
   environment,
@@ -114,7 +81,7 @@ export const createExtractRouter = ({
     createExtractionRateLimit(environment),
     createPdfUploadMiddleware(uploadLimits === undefined ? {} : { limits: uploadLimits }),
     async (request, response, next) => {
-      const cancellation = bindExtractionCancellation(request, response);
+      const cancellation = bindRequestCancellation(request, response);
 
       try {
         const schemaType = parseSchemaType(request.body);

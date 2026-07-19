@@ -19,6 +19,8 @@ export interface Environment {
   readonly groqMaxRetries: number;
   readonly extractRateLimitWindowMs: number;
   readonly extractRateLimitMax: number;
+  readonly generateRateLimitWindowMs: number;
+  readonly generateRateLimitMax: number;
   readonly groqMaxInputCharacters: number;
 }
 
@@ -124,6 +126,8 @@ const environmentSchema = z.object({
   EXTRACT_RATE_LIMIT_MAX: integerFromString(1, 100, 10),
   EXTRACT_RATE_LIMIT_WINDOW_MS: integerFromString(1_000, 3_600_000, 60_000),
   FRONTEND_ORIGIN: frontendOriginSchema,
+  GENERATE_RATE_LIMIT_MAX: integerFromString(1, 200, 20),
+  GENERATE_RATE_LIMIT_WINDOW_MS: integerFromString(1_000, 3_600_000, 60_000),
   GROQ_API_KEY: z
     .string({ error: "is required" })
     .transform((value) => value.trim())
@@ -153,6 +157,8 @@ export const parseEnvironment = (source: NodeJS.ProcessEnv): Environment => {
     extractRateLimitMax: result.data.EXTRACT_RATE_LIMIT_MAX,
     extractRateLimitWindowMs: result.data.EXTRACT_RATE_LIMIT_WINDOW_MS,
     frontendOrigin: result.data.FRONTEND_ORIGIN,
+    generateRateLimitMax: result.data.GENERATE_RATE_LIMIT_MAX,
+    generateRateLimitWindowMs: result.data.GENERATE_RATE_LIMIT_WINDOW_MS,
     groqApiKey: result.data.GROQ_API_KEY,
     groqMaxInputCharacters: result.data.GROQ_MAX_INPUT_CHARACTERS,
     groqMaxRetries: result.data.GROQ_MAX_RETRIES,
