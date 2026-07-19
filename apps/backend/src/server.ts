@@ -3,12 +3,28 @@ import "dotenv/config";
 import { createApp } from "./app.js";
 import { EnvironmentValidationError, parseEnvironment } from "./config/environment.js";
 import { createLogger } from "./config/logger.js";
+import { createDocumentExtractionService } from "./extraction/extraction-service.js";
+import { createGroqClient } from "./extraction/groq-client.js";
+import { createGroqStructuredExtractor } from "./extraction/groq-structured-extractor.js";
+import { createPdfTextExtractor } from "./extraction/pdf-text-extractor.js";
 import { startServer } from "./runtime/start-server.js";
 
 const start = (): void => {
   const environment = parseEnvironment(process.env);
   const logger = createLogger(environment);
-  const app = createApp({ environment, logger });
+  const groqClient = createGroqClient(environment);
+  const pdfTextExtractor = createPdfTextExtractor();
+  const structuredExtractor = createGroqStructuredExtractor({
+    client: groqClient,
+    environment,
+    logger,
+  });
+  const extractionService = createDocumentExtractionService({
+    environment,
+    pdfTextExtractor,
+    structuredExtractor,
+  });
+  const app = createApp({ environment, extractionService, logger });
 
   startServer({ app, environment, logger });
 };

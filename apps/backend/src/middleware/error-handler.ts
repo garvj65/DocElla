@@ -65,12 +65,20 @@ export const errorHandler =
       method: request.method,
       path: pathOnly(request),
       requestId: request.requestId,
+      ...appError.safeLogContext,
     };
 
     if (appError.status >= 500 || !appError.isOperational) {
-      logger.error({ ...logPayload, err: appError.cause ?? appError }, "Request failed");
+      logger.error(
+        appError.logCause ? { ...logPayload, err: appError.cause ?? appError } : logPayload,
+        "Request failed",
+      );
     } else {
       logger.warn(logPayload, "Request rejected");
+    }
+
+    if (request.path.startsWith("/api/extract")) {
+      response.setHeader("Cache-Control", "no-store");
     }
 
     sendError(response, appError.status, appError.code, appError.message, appError.details);

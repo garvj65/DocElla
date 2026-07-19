@@ -4,21 +4,31 @@ import helmet from "helmet";
 import type { Logger } from "pino";
 
 import type { Environment } from "./config/environment.js";
+import type { ExtractionLimits } from "./config/extraction-limits.js";
 import { createHttpLogger } from "./config/logger.js";
+import { AppError } from "./errors/app-error.js";
+import { ERROR_CODES } from "./errors/error-codes.js";
+import type { DocumentExtractionService } from "./extraction/extraction-types.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { notFound } from "./middleware/not-found.js";
 import { requestContext } from "./middleware/request-context.js";
+import { createExtractRouter } from "./routes/extract.js";
 import { createHealthRouter } from "./routes/health.js";
 import { createSchemaRouter } from "./routes/schemas.js";
-import { AppError } from "./errors/app-error.js";
-import { ERROR_CODES } from "./errors/error-codes.js";
 
 export interface CreateAppOptions {
   readonly environment: Environment;
+  readonly extractionService: DocumentExtractionService;
   readonly logger: Logger;
+  readonly uploadLimits?: Partial<ExtractionLimits>;
 }
 
-export const createApp = ({ environment, logger }: CreateAppOptions): Express => {
+export const createApp = ({
+  environment,
+  extractionService,
+  logger,
+  uploadLimits,
+}: CreateAppOptions): Express => {
   const app = express();
 
   app.disable("x-powered-by");
@@ -46,6 +56,14 @@ export const createApp = ({ environment, logger }: CreateAppOptions): Express =>
     }),
   );
   app.use(express.json({ limit: "1mb", strict: true, type: "application/json" }));
+  app.use(
+    "/api/extract",
+    createExtractRouter(
+      uploadLimits === undefined
+        ? { environment, extractionService, logger }
+        : { environment, extractionService, logger, uploadLimits },
+    ),
+  );
   app.use("/api/health", createHealthRouter());
   app.use("/api/schemas", createSchemaRouter());
   app.use(notFound);
