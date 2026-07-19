@@ -7,6 +7,7 @@ import { createDocumentExtractionService } from "./extraction/extraction-service
 import { createGroqClient } from "./extraction/groq-client.js";
 import { createGroqStructuredExtractor } from "./extraction/groq-structured-extractor.js";
 import { createPdfTextExtractor } from "./extraction/pdf-text-extractor.js";
+import { createGroundingService } from "./grounding/grounding-service.js";
 import { startServer } from "./runtime/start-server.js";
 
 const start = (): void => {
@@ -14,6 +15,7 @@ const start = (): void => {
   const logger = createLogger(environment);
   const groqClient = createGroqClient(environment);
   const pdfTextExtractor = createPdfTextExtractor();
+  const groundingService = createGroundingService();
   const structuredExtractor = createGroqStructuredExtractor({
     client: groqClient,
     environment,
@@ -21,6 +23,7 @@ const start = (): void => {
   });
   const extractionService = createDocumentExtractionService({
     environment,
+    groundingService,
     pdfTextExtractor,
     structuredExtractor,
   });

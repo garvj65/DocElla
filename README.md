@@ -1,8 +1,8 @@
 # DocElla
 
-DocElla is planned as a PDF-to-form workflow application. This repository currently contains the TypeScript monorepo scaffold, shared document definitions, a backend API foundation, and the first backend PDF extraction slice.
+DocElla is planned as a PDF-to-form workflow application. This repository currently contains the TypeScript monorepo scaffold, shared document definitions, a backend API foundation, and the first backend PDF extraction and grounding slice.
 
-OCR, authentication, frontend upload UI, grounding, confidence review, and PDF generation are not implemented yet.
+OCR, authentication, frontend upload UI, user edits, and PDF generation are not implemented yet.
 
 ## Prerequisites
 
@@ -109,13 +109,49 @@ Limits and behavior:
 - Maximum normalized provider input is controlled by `GROQ_MAX_INPUT_CHARACTERS`
 - Extraction responses include `Cache-Control: no-store`
 
-Successful extraction responses use the standard success envelope with `schemaType`, `documentVersion`, and a `values` object. Every schema field is present, missing values are `null`, and no PDF text, filename, prompts, confidence values, or provider internals are returned.
+Successful extraction responses use the standard success envelope with `schemaType`, `documentVersion`, `values`, and `review`. Every schema field is present in both `values` and `review`, missing values are `null`, and no PDF text, filename, prompts, source snippets, offsets, matching representations, or provider internals are returned.
+
+### Grounding
+
+After Groq returns locally validated structured values, DocElla compares each non-null extracted value against the normalized PDF text using deterministic local logic. No additional Groq request is made.
+
+Per-field statuses are:
+
+- `verified`: the value has strong deterministic support in the PDF text
+- `needs_review`: the value is non-null but has weak support or no deterministic match
+- `missing`: the extracted value is `null`
+
+Per-field match types are:
+
+- `exact`: minimally normalized value appears in the text
+- `normalized`: a field-aware canonical representation matches
+- `fuzzy`: conservative textual token-window matching reached the threshold
+- `none`: no deterministic match was found, or the value is missing
+
+Field confidence values are fixed heuristic scores: exact `1.00`, normalized `0.90`, fuzzy `0.60`, unmatched `0.25`, and missing `0.00`. Aggregate confidence averages every non-null extracted field plus every required missing field, while optional missing fields are excluded from the denominator. Required missing fields lower the score. Confidence is a review heuristic, not a provider probability, and values still require user review before important use.
+
+Warnings use stable codes:
+
+- `NO_VALUES_EXTRACTED`
+- `REQUIRED_FIELDS_MISSING`
+- `FIELDS_REQUIRE_REVIEW`
+- `LOW_CONFIDENCE`
+
+Grounding runs locally. Source text and snippets are not returned. Matching representations are not logged. Extraction responses remain non-cacheable.
+
+Limitations:
+
+- Fuzzy grounding is conservative.
+- Grounding is evidence checking, not factual verification.
+- A match elsewhere in a document can still be contextually wrong.
+- OCR remains unsupported.
+- Page coordinates and source highlighting are not implemented.
 
 Common extraction error codes include `UPLOAD_REQUIRED`, `UPLOAD_TOO_LARGE`, `UPLOAD_INVALID_TYPE`, `PDF_INVALID`, `PDF_PASSWORD_PROTECTED`, `PDF_NO_EXTRACTABLE_TEXT`, `PDF_PAGE_LIMIT_EXCEEDED`, `PDF_TEXT_LIMIT_EXCEEDED`, `PDF_PARSE_TIMEOUT`, `EXTRACTION_RATE_LIMITED`, `EXTRACTION_PROVIDER_TIMEOUT`, `EXTRACTION_PROVIDER_RATE_LIMITED`, `EXTRACTION_PROVIDER_UNAVAILABLE`, `EXTRACTION_PROVIDER_REJECTED`, and `EXTRACTION_OUTPUT_INVALID`.
 
 Backend logs are structured JSON and intentionally exclude request bodies, response bodies, authorization and cookie headers, API-key headers, query strings, PDF bytes, extracted text, prompts, extracted values, and form values. Uploaded PDFs stay in memory only and are never persisted.
 
-PDF uploads, PDF parsing, and Groq extraction are backend-only in this slice. Authentication, persistence, queues, frontend upload UI, grounding, confidence review, OCR, and PDF generation are not implemented yet. Scanned PDFs fail with `PDF_NO_EXTRACTABLE_TEXT`.
+PDF uploads, PDF parsing, Groq extraction, and local grounding are backend-only in this slice. Authentication, persistence, queues, frontend upload UI, OCR, and PDF generation are not implemented yet. Scanned PDFs fail with `PDF_NO_EXTRACTABLE_TEXT`.
 
 ## Repository Gates
 

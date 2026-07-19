@@ -14,6 +14,17 @@ export type {
   PublicFieldConfig,
   PublicTemplateConfig,
 } from "./contracts/public-document-config.js";
+export {
+  EXTRACTION_WARNING_CODES,
+  GROUNDING_MATCH_TYPES,
+  GROUNDING_STATUSES,
+  type ExtractionWarning,
+  type ExtractionWarningCode,
+  type FieldReview,
+  type FieldReviewMap,
+  type GroundingMatchType,
+  type GroundingStatus,
+} from "./contracts/extraction-review.js";
 
 export { defineDocument } from "./define-document.js";
 export {

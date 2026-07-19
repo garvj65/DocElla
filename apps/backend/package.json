@@ -10,7 +10,8 @@
     "build": "tsc -p tsconfig.json && npm run verify:dist",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "verify:dist": "node scripts/verify-dist.mjs"
+    "verify:dist": "node scripts/verify-dist.mjs",
+    "smoke:mocked": "node scripts/compiled-mocked-extraction-smoke.mjs"
   },
   "dependencies": {
     "@docella/schemas": "0.0.0",

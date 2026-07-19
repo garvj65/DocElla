@@ -56,16 +56,29 @@ const createInvalidOutputExtractionService = (
 
   return {
     extract: async ({ documentDefinition, signal }) => ({
+      confidence: 0,
       documentVersion: documentDefinition.version,
       extractedCharacters: 64,
+      missingFields: documentDefinition.fields.length,
       model: testEnvironment.groqModel,
+      needsReviewFields: 0,
       pageCount: 1,
+      requiredMissingFields: 0,
+      review: Object.fromEntries(
+        documentDefinition.fields.map((field) => [
+          field.key,
+          { confidence: 0, matchType: "none", status: "missing" },
+        ]),
+      ),
+      reviewRequired: false,
       schemaType: documentDefinition.id,
+      verifiedFields: 0,
       values: await extractor.extract({
         documentDefinition,
         documentText: "Synthetic PDF text",
         signal,
       }),
+      warnings: [],
     }),
   };
 };
