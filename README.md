@@ -48,3 +48,18 @@ apps/frontend   Vite React TypeScript scaffold
 apps/backend    Express TypeScript health endpoint
 packages/schemas Shared TypeScript exports
 ```
+
+## Document definition layer
+
+Shared document definitions live in `packages/schemas`. They currently support flat
+primitive fields only: text, textarea, email, phone, ISO `YYYY-MM-DD` date strings,
+finite numbers, currency numbers, and selects.
+
+This definition layer will later drive extraction, form rendering, validation, and
+PDF field mapping from one source of truth. Extraction uses `null` when source
+documents are missing a value, while missing object properties remain invalid.
+
+Two definitions currently exist:
+
+- Job Application
+- Basic Invoice
