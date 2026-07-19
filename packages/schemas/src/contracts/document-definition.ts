@@ -1,4 +1,4 @@
-import type { FieldDefinition } from "./field-definition";
+import type { FieldDefinition } from "./field-definition.js";
 
 export interface TemplateDefinition {
   readonly id: string;

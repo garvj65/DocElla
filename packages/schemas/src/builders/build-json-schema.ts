@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import type { DocumentDefinition } from "../contracts/document-definition";
-import { buildExtractionSchema } from "./build-extraction-schema";
+import type { DocumentDefinition } from "../contracts/document-definition.js";
+import { buildExtractionSchema } from "./build-extraction-schema.js";
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | JsonObject;

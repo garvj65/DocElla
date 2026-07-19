@@ -43,7 +43,13 @@ export default tseslint.config(
     },
   },
   {
-    files: ["**/*.test.{ts,tsx}", "**/vitest.config.ts", "scripts/**/*.mjs"],
+    files: [
+      "**/*.test.{ts,tsx}",
+      "**/scripts/**/*.mjs",
+      "**/test/support/**/*.ts",
+      "**/vitest.config.ts",
+      "scripts/**/*.mjs",
+    ],
     extends: [tseslint.configs.disableTypeChecked],
     languageOptions: {
       globals: globals.node,

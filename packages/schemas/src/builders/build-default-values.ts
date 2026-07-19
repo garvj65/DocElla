@@ -1,4 +1,4 @@
-import type { DocumentDefinition } from "../contracts/document-definition";
+import type { DocumentDefinition } from "../contracts/document-definition.js";
 
 export type DefaultFieldValue = string | number | null;
 export type DefaultValues = Readonly<Record<string, DefaultFieldValue>>;

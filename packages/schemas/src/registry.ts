@@ -1,14 +1,14 @@
-import type { DocumentDefinition } from "./contracts/document-definition";
+import type { DocumentDefinition } from "./contracts/document-definition.js";
 import type {
   PublicDocumentConfig,
   PublicDocumentSummary,
-} from "./contracts/public-document-config";
+} from "./contracts/public-document-config.js";
 import {
   buildPublicDocumentConfig,
   buildPublicDocumentSummary,
-} from "./builders/build-public-config";
-import { basicInvoiceDefinition } from "./definitions/basic-invoice";
-import { jobApplicationDefinition } from "./definitions/job-application";
+} from "./builders/build-public-config.js";
+import { basicInvoiceDefinition } from "./definitions/basic-invoice.js";
+import { jobApplicationDefinition } from "./definitions/job-application.js";
 
 const freezeDefinitions = <TDefinition extends DocumentDefinition>(
   definitions: readonly TDefinition[],

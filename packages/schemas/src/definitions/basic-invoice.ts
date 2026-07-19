@@ -1,4 +1,4 @@
-import { defineDocument } from "../define-document";
+import { defineDocument } from "../define-document.js";
 
 export const basicInvoiceDefinition = defineDocument({
   id: "basic-invoice",
