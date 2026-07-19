@@ -3,9 +3,18 @@ import type { Response } from "express";
 import type { ErrorCode } from "../errors/error-codes.js";
 import type { ErrorDetails } from "../errors/app-error.js";
 
+type ResponseMetaPrimitive = string | number | boolean | null;
+
+type ResponseMetaValue =
+  | ResponseMetaPrimitive
+  | readonly ResponseMetaValue[]
+  | {
+      readonly [key: string]: ResponseMetaValue;
+    };
+
 interface ResponseMeta {
   readonly requestId: string;
-  readonly [key: string]: string | number | boolean | null;
+  readonly [key: string]: ResponseMetaValue;
 }
 
 interface SuccessEnvelope {

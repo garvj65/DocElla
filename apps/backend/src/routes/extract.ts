@@ -1,4 +1,4 @@
-import { getDocumentDefinition } from "@docella/schemas";
+import { getDocumentDefinition, type ExtractionWarning } from "@docella/schemas";
 import { Router, type Request, type Response } from "express";
 import type { Logger } from "pino";
 
@@ -11,6 +11,26 @@ import { createPdfUploadMiddleware, SCHEMA_TYPE_FIELD } from "../middleware/pdf-
 import type { DocumentExtractionService } from "../extraction/extraction-types.js";
 import type { Environment } from "../config/environment.js";
 import type { ExtractionLimits } from "../config/extraction-limits.js";
+
+const toWarningMeta = (
+  warnings: readonly ExtractionWarning[],
+): readonly {
+  readonly code: string;
+  readonly message: string;
+  readonly fieldKeys?: readonly string[];
+}[] =>
+  warnings.map((warning) =>
+    warning.fieldKeys === undefined
+      ? {
+          code: warning.code,
+          message: warning.message,
+        }
+      : {
+          code: warning.code,
+          fieldKeys: warning.fieldKeys,
+          message: warning.message,
+        },
+  );
 
 export interface CreateExtractRouterOptions {
   readonly environment: Environment;
@@ -146,13 +166,21 @@ export const createExtractRouter = ({
           200,
           {
             documentVersion: result.documentVersion,
+            review: result.review,
             schemaType: result.schemaType,
             values: result.values,
           },
           {
+            confidence: result.confidence,
             extractedCharacters: result.extractedCharacters,
+            missingFields: result.missingFields,
             model: result.model,
+            needsReviewFields: result.needsReviewFields,
             pageCount: result.pageCount,
+            requiredMissingFields: result.requiredMissingFields,
+            reviewRequired: result.reviewRequired,
+            verifiedFields: result.verifiedFields,
+            warnings: toWarningMeta(result.warnings),
           },
         );
       } catch (error) {

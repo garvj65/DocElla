@@ -1,4 +1,9 @@
-import type { DocumentDefinition, ExtractionData } from "@docella/schemas";
+import type {
+  DocumentDefinition,
+  ExtractionData,
+  ExtractionWarning,
+  FieldReviewMap,
+} from "@docella/schemas";
 
 export interface PdfTextExtractionOptions {
   readonly maxInputCharacters: number;
@@ -41,6 +46,14 @@ export interface DocumentExtractionResult {
   readonly schemaType: string;
   readonly documentVersion: number;
   readonly values: ExtractionData;
+  readonly review: FieldReviewMap;
+  readonly confidence: number;
+  readonly warnings: readonly ExtractionWarning[];
+  readonly reviewRequired: boolean;
+  readonly verifiedFields: number;
+  readonly needsReviewFields: number;
+  readonly missingFields: number;
+  readonly requiredMissingFields: number;
   readonly model: string;
   readonly pageCount: number;
   readonly extractedCharacters: number;

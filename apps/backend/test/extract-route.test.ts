@@ -27,13 +27,52 @@ const jobValues = {
   yearsOfExperience: null,
 };
 
+const jobDefinition = getDocumentDefinition("job-application");
+if (jobDefinition === undefined) {
+  throw new Error("Missing job application schema.");
+}
+
+const jobReview = Object.fromEntries(
+  jobDefinition.fields.map((field) => [
+    field.key,
+    field.key === "fullName"
+      ? { confidence: 1, matchType: "exact", status: "verified" }
+      : field.key === "positionAppliedFor"
+        ? { confidence: 0.25, matchType: "none", status: "needs_review" }
+        : { confidence: 0, matchType: "none", status: "missing" },
+  ]),
+);
+
 describe("POST /api/extract", () => {
   it("returns a validated extraction envelope for a job application", async () => {
     const service = createFakeExtractionService({
+      confidence: 0.42,
       extractedCharacters: 84,
+      missingFields: 10,
       model: testEnvironment.groqModel,
+      needsReviewFields: 1,
       pageCount: 1,
+      requiredMissingFields: 3,
+      review: jobReview,
+      reviewRequired: true,
       values: jobValues,
+      verifiedFields: 1,
+      warnings: [
+        {
+          code: "REQUIRED_FIELDS_MISSING",
+          fieldKeys: ["phone", "address"],
+          message: "One or more required fields are missing.",
+        },
+        {
+          code: "FIELDS_REQUIRE_REVIEW",
+          fieldKeys: ["positionAppliedFor"],
+          message: "One or more extracted values require review.",
+        },
+        {
+          code: "LOW_CONFIDENCE",
+          message: "The extraction confidence is below the review threshold.",
+        },
+      ],
     });
 
     const response = await request(createTestApp(service))
@@ -50,14 +89,37 @@ describe("POST /api/extract", () => {
     expect(response.body).toEqual({
       data: {
         documentVersion: 1,
+        review: jobReview,
         schemaType: "job-application",
         values: jobValues,
       },
       meta: {
+        confidence: 0.42,
         extractedCharacters: 84,
+        missingFields: 10,
         model: "openai/gpt-oss-20b",
+        needsReviewFields: 1,
         pageCount: 1,
+        requiredMissingFields: 3,
         requestId: "extract-route-test",
+        reviewRequired: true,
+        verifiedFields: 1,
+        warnings: [
+          {
+            code: "REQUIRED_FIELDS_MISSING",
+            fieldKeys: ["phone", "address"],
+            message: "One or more required fields are missing.",
+          },
+          {
+            code: "FIELDS_REQUIRE_REVIEW",
+            fieldKeys: ["positionAppliedFor"],
+            message: "One or more extracted values require review.",
+          },
+          {
+            code: "LOW_CONFIDENCE",
+            message: "The extraction confidence is below the review threshold.",
+          },
+        ],
       },
       success: true,
     });
@@ -90,6 +152,18 @@ describe("POST /api/extract", () => {
     expect(Object.keys(response.body.data.values).sort()).toEqual(
       definition.fields.map((field) => field.key).sort(),
     );
+    expect(Object.keys(response.body.data.review).sort()).toEqual(
+      definition.fields.map((field) => field.key).sort(),
+    );
+    expect(response.body.meta).toMatchObject({
+      confidence: 0,
+      missingFields: definition.fields.length,
+      needsReviewFields: 0,
+      requiredMissingFields: 0,
+      reviewRequired: false,
+      verifiedFields: 0,
+      warnings: [],
+    });
   });
 
   it("rejects unknown schema before calling the extraction service", async () => {
@@ -182,12 +256,25 @@ describe("POST /api/extract", () => {
       extract: async ({ documentDefinition, signal }) => {
         observedSignal = signal;
         return {
+          confidence: 0,
           documentVersion: documentDefinition.version,
           extractedCharacters: 84,
+          missingFields: jobDefinition.fields.length,
           model: testEnvironment.groqModel,
+          needsReviewFields: 0,
           pageCount: 1,
+          requiredMissingFields: 0,
+          review: Object.fromEntries(
+            documentDefinition.fields.map((field) => [
+              field.key,
+              { confidence: 0, matchType: "none", status: "missing" },
+            ]),
+          ),
+          reviewRequired: false,
           schemaType: documentDefinition.id,
           values: jobValues,
+          verifiedFields: 0,
+          warnings: [],
         };
       },
     };
