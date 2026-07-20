@@ -1,4 +1,5 @@
 import type { PublicFieldConfig } from "@docella/schemas/public";
+import type { ReactNode } from "react";
 import type { Control, FieldError, UseFormRegister } from "react-hook-form";
 import { Controller } from "react-hook-form";
 
@@ -19,13 +20,20 @@ interface DynamicFieldProps {
   readonly control: Control<DynamicFormValues>;
   readonly error: FieldError | undefined;
   readonly field: PublicFieldConfig;
+  readonly fieldAccessory?: ReactNode;
   readonly register: UseFormRegister<DynamicFormValues>;
 }
 
 const describedBy = (descriptionId: string, errorId: string, hasError: boolean): string =>
   hasError ? `${descriptionId} ${errorId}` : descriptionId;
 
-export function DynamicField({ control, error, field, register }: DynamicFieldProps) {
+export function DynamicField({
+  control,
+  error,
+  field,
+  fieldAccessory,
+  register,
+}: DynamicFieldProps) {
   const inputId = `field-${field.key}`;
   const descriptionId = `${inputId}-description`;
   const errorId = `${inputId}-error`;
@@ -37,12 +45,15 @@ export function DynamicField({ control, error, field, register }: DynamicFieldPr
 
   return (
     <div className="space-y-2">
-      <Label htmlFor={inputId}>
-        {field.label}
-        {field.required ? (
-          <span className="ml-1 text-[var(--color-danger)]">(required)</span>
-        ) : null}
-      </Label>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Label htmlFor={inputId}>
+          {field.label}
+          {field.required ? (
+            <span className="ml-1 text-[var(--color-danger)]">(required)</span>
+          ) : null}
+        </Label>
+        {fieldAccessory}
+      </div>
       <FieldMessage id={descriptionId}>{field.description}</FieldMessage>
       {renderField({ commonProps, control, field, register })}
       <FieldMessage id={errorId} tone="error">

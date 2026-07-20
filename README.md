@@ -1,8 +1,8 @@
 # DocElla
 
-DocElla is planned as a PDF-to-form workflow application. This repository currently contains the TypeScript monorepo scaffold, shared document definitions, a backend API foundation, PDF extraction and grounding, and a backend schema-driven PDF generation slice.
+DocElla is planned as a PDF-to-form workflow application. This repository currently contains the TypeScript monorepo scaffold, shared document definitions, a backend API foundation, PDF extraction and grounding, a frontend extraction review workflow, and a backend schema-driven PDF generation slice.
 
-OCR, authentication, frontend upload UI, and user edits are not implemented yet.
+OCR, authentication, persistence, and frontend PDF generation/download are not implemented yet.
 
 ## Prerequisites
 
@@ -58,10 +58,11 @@ Set `VITE_API_BASE_URL` when the API is not same-origin:
 VITE_API_BASE_URL=http://localhost:3001
 ```
 
-The frontend loads only public schema configuration:
+The frontend loads only public schema configuration and submits extraction requests only after explicit user action:
 
 - `GET /api/schemas`
 - `GET /api/schemas/:schemaType`
+- `POST /api/extract`
 
 The form renderer supports public field kinds `text`, `textarea`, `email`,
 `phone`, `date`, `number`, `currency`, and `select`. It renders labels,
@@ -75,13 +76,62 @@ and Slot. The UI includes responsive loading, empty, and error states, visible
 focus styles, and no authentication, analytics, routing, upload library, or state
 store.
 
-T08 intentionally does not send form values to the backend. Values are not
-persisted in browser storage, URLs, cookies, or query keys. The frontend makes no
-`POST /api/extract`, no `POST /api/generate-pdf`, and no provider request.
+The Form-to-PDF tab intentionally does not send form values to the backend in this
+slice. Values are not persisted in browser storage, URLs, cookies, or query keys.
+PDF generation and download UI are deferred to T10. Public API config does not
+contain internal template asset paths or PDF field names, and the frontend does
+not render them.
 
-PDF upload and extraction review UI are deferred to T09. PDF generation and
-download UI are deferred to T10. Public API config does not contain internal
-template asset paths or PDF field names, and the frontend does not render them.
+### PDF-to-Form frontend workflow
+
+The PDF-to-Form tab implements the T09 extraction review flow:
+
+1. Select a public document schema.
+2. Choose or drop exactly one PDF.
+3. Run local PDF preflight checks.
+4. Click `Extract` to send `multipart/form-data` to `POST /api/extract`.
+5. Review grounding confidence, counts, warnings, and per-field badges.
+6. Edit extracted values in the schema-driven reviewed form.
+7. Validate reviewed fields locally.
+
+Supported upload constraints:
+
+- PDF files only, with MIME type `application/pdf` and a `.pdf` filename.
+- Maximum size is 10 MiB.
+- The first 1024 bytes must contain the `%PDF-` marker.
+- Text-based PDFs are required.
+- OCR remains unsupported, so scanned/image-only PDFs fail safely.
+
+The frontend does not upload immediately when a file is selected. Active extraction
+requests can be cancelled, and selecting another schema, choosing another file, or
+starting over clears stale results. Retry is explicit and reuses only the currently
+selected valid file.
+
+Grounding review displays:
+
+- `Verified` with exact or normalized match details.
+- `Needs review` with fuzzy or no-source-match details.
+- `Missing` when no value was extracted.
+- Warning messages in backend order, with field keys converted to public labels.
+- `Grounding confidence` as a deterministic review heuristic for the original
+  extraction, not a probability, guarantee, or factual proof.
+
+The reviewed form is prefilled from extracted values. Null textual, select, email,
+date, and phone values become blank fields; null number and currency values remain
+blank numeric values. Edited fields show a separate `Edited` indicator. Editing
+does not recompute grounding, change the original grounding state, or send values
+anywhere in T09. `Reset edits` restores the extraction result, while `Start over`
+removes the selected file and extraction result.
+
+Privacy boundaries:
+
+- Files and extracted values remain in memory only.
+- No local/session storage is used.
+- No object URLs or PDF previews are created.
+- No source text, source snippets, raw API JSON, provider prompts, model names,
+  internal asset paths, or PDF field names are rendered.
+- No `POST /api/generate-pdf` request is made from the T09 frontend workflow.
+- Live extraction requires `GROQ_API_KEY` on the backend.
 
 ## Backend API
 

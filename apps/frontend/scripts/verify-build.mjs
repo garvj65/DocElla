@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { join } from "node:path";
+import { normalize, join } from "node:path";
 
 const distPath = fileURLToPath(new URL("../dist/", import.meta.url));
 const indexPath = join(distPath, "index.html");
@@ -41,10 +41,52 @@ for (const asset of assets) {
   if (
     assetText.includes("templates/") ||
     assetText.includes("job.") ||
-    assetText.includes("invoice.")
+    assetText.includes("invoice.") ||
+    assetText.includes("pdfFieldName") ||
+    assetText.includes("assetPath")
   ) {
     throw new Error("Internal template metadata appeared in compiled frontend assets.");
   }
+
+  for (const sentinel of [
+    "Sensitive Sentinel",
+    "Sentinel Secret",
+    "raw mock extraction",
+    "raw Sentinel",
+  ]) {
+    if (assetText.includes(sentinel)) {
+      throw new Error("Sentinel test data appeared in compiled frontend assets.");
+    }
+  }
+
+  if (assetText.includes("/api/generate-pdf")) {
+    throw new Error("PDF generation mutation endpoint appeared in T09 frontend assets.");
+  }
+}
+
+const sourceRoot = fileURLToPath(new URL("../src/", import.meta.url));
+const sourceFiles = [];
+const collectSourceFiles = (directory) => {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      collectSourceFiles(entryPath);
+    } else if (/\.[cm]?[jt]sx?$/u.test(entry.name)) {
+      sourceFiles.push(entryPath);
+    }
+  }
+};
+collectSourceFiles(sourceRoot);
+
+const extractReferences = sourceFiles.filter((file) => {
+  const text = readFileSync(file, "utf8");
+  return text.includes('"/api/extract"') || text.includes("'/api/extract'");
+});
+if (
+  extractReferences.length !== 1 ||
+  !normalize(extractReferences[0]).endsWith(normalize("api/extraction-api.ts"))
+) {
+  throw new Error("/api/extract must appear only in the intended extraction API module.");
 }
 
 console.log("Frontend production build smoke passed.");

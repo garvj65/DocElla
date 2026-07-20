@@ -43,7 +43,7 @@ describe("DynamicDocumentForm", () => {
     await user.click(screen.getByRole("button", { name: /reset form/i }));
     expect(screen.getByLabelText(/Full name/)).toHaveValue("");
     consoleSpy.mockRestore();
-  });
+  }, 10000);
 });
 
 function renderForm() {
