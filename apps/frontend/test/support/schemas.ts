@@ -1,4 +1,9 @@
-import type { PublicDocumentConfig, PublicDocumentSummary } from "@docella/schemas/public";
+import type {
+  FieldReview,
+  PublicDocumentConfig,
+  PublicDocumentSummary,
+  PublicExtractionResult,
+} from "@docella/schemas/public";
 
 export const everyFieldConfig: PublicDocumentConfig = {
   description: "Synthetic schema for frontend tests.",
@@ -93,3 +98,50 @@ export const successEnvelope = (data: unknown) => ({
   meta: { requestId: "req_test" },
   success: true,
 });
+
+const verified: FieldReview = { confidence: 1, matchType: "exact", status: "verified" };
+
+export const buildExtractionResult = (
+  config: PublicDocumentConfig,
+  overrides: Partial<PublicExtractionResult> = {},
+): PublicExtractionResult => {
+  const values: Record<string, string | number | null> = {};
+  const review: Record<string, FieldReview> = {};
+
+  for (const field of config.fields) {
+    values[field.key] =
+      field.kind === "number" || field.kind === "currency"
+        ? 12
+        : field.kind === "email"
+          ? "alex@example.com"
+          : field.kind === "date"
+            ? "2026-07-20"
+            : field.kind === "select"
+              ? (field.options?.[0]?.value ?? null)
+              : "Extracted value";
+    review[field.key] = verified;
+  }
+
+  return {
+    data: {
+      documentVersion: config.version,
+      review,
+      schemaType: config.id,
+      values,
+    },
+    meta: {
+      confidence: 1,
+      extractedCharacters: 300,
+      missingFields: 0,
+      model: "hidden-model",
+      needsReviewFields: 0,
+      pageCount: 1,
+      requestId: "req_extract",
+      requiredMissingFields: 0,
+      reviewRequired: false,
+      verifiedFields: config.fields.length,
+      warnings: [],
+    },
+    ...overrides,
+  };
+};

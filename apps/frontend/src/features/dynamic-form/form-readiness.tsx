@@ -1,7 +1,13 @@
 import { Alert } from "../../components/ui/alert";
 import type { ValidationState } from "./form-types";
 
-export function FormReadiness({ state }: { readonly state: ValidationState }) {
+export function FormReadiness({
+  state,
+  successMessage = "All configured fields passed local validation.",
+}: {
+  readonly state: ValidationState;
+  readonly successMessage?: string;
+}) {
   if (state === "idle") {
     return (
       <Alert>
@@ -14,5 +20,5 @@ export function FormReadiness({ state }: { readonly state: ValidationState }) {
     return <Alert tone="error">Some fields need attention before this form is ready.</Alert>;
   }
 
-  return <Alert tone="success">All configured fields passed local validation.</Alert>;
+  return <Alert tone="success">{successMessage}</Alert>;
 }

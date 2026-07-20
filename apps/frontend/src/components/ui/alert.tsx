@@ -7,7 +7,10 @@ interface AlertProps extends React.HTMLAttributes<HTMLDivElement> {
   readonly tone?: "info" | "error" | "success";
 }
 
-export function Alert({ children, className, tone = "info", ...props }: AlertProps) {
+export const Alert = React.forwardRef<HTMLDivElement, AlertProps>(function Alert(
+  { children, className, tone = "info", ...props },
+  ref,
+) {
   const Icon = tone === "error" ? AlertCircle : tone === "success" ? CheckCircle2 : Info;
 
   return (
@@ -19,6 +22,7 @@ export function Alert({ children, className, tone = "info", ...props }: AlertPro
         tone === "success" && "border-emerald-200 bg-emerald-50 text-emerald-950",
         className,
       )}
+      ref={ref}
       role={tone === "error" ? "alert" : "status"}
       {...props}
     >
@@ -26,4 +30,4 @@ export function Alert({ children, className, tone = "info", ...props }: AlertPro
       <div>{children}</div>
     </div>
   );
-}
+});

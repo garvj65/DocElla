@@ -1,6 +1,6 @@
 import { FrontendApiError } from "./api-error";
 
-interface SuccessEnvelope {
+export interface SuccessEnvelope {
   readonly success: true;
   readonly data: unknown;
   readonly meta:
@@ -10,7 +10,7 @@ interface SuccessEnvelope {
     | undefined;
 }
 
-interface ErrorEnvelope {
+export interface ErrorEnvelope {
   readonly success: false;
   readonly error:
     | {
@@ -24,10 +24,10 @@ interface ErrorEnvelope {
     | undefined;
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const requestIdFromMeta = (meta: unknown): string | undefined => {
+export const requestIdFromMeta = (meta: unknown): string | undefined => {
   if (!isRecord(meta)) {
     return undefined;
   }
@@ -35,12 +35,15 @@ const requestIdFromMeta = (meta: unknown): string | undefined => {
   return typeof meta.requestId === "string" ? meta.requestId : undefined;
 };
 
-const parseEnvelope = (value: unknown): SuccessEnvelope | ErrorEnvelope => {
+export const parseEnvelope = (
+  value: unknown,
+  serviceLabel = "schema service",
+): SuccessEnvelope | ErrorEnvelope => {
   if (!isRecord(value) || typeof value.success !== "boolean") {
     throw new FrontendApiError({
       code: "MALFORMED_RESPONSE",
       status: 502,
-      message: "The schema service returned an unexpected response.",
+      message: `The ${serviceLabel} returned an unexpected response.`,
     });
   }
 
@@ -49,7 +52,7 @@ const parseEnvelope = (value: unknown): SuccessEnvelope | ErrorEnvelope => {
       throw new FrontendApiError({
         code: "MALFORMED_RESPONSE",
         status: 502,
-        message: "The schema service returned an unexpected response.",
+        message: `The ${serviceLabel} returned an unexpected response.`,
       });
     }
 
@@ -67,15 +70,15 @@ const parseEnvelope = (value: unknown): SuccessEnvelope | ErrorEnvelope => {
   };
 };
 
-const buildUrl = (apiBaseUrl: string, path: string): string => {
+export const buildUrl = (apiBaseUrl: string, path: string): string => {
   const normalizedBaseUrl = apiBaseUrl.replace(/\/+$/u, "");
   return normalizedBaseUrl.length === 0 ? path : `${normalizedBaseUrl}${path}`;
 };
 
-const isJsonResponse = (response: Response): boolean =>
+export const isJsonResponse = (response: Response): boolean =>
   response.headers.get("content-type")?.toLowerCase().includes("application/json") ?? false;
 
-const apiErrorOptions = (
+export const apiErrorOptions = (
   status: number,
   code: string,
   requestId: string | undefined,
@@ -106,15 +109,22 @@ export const getJson = async (
     ...requestInit,
   });
 
+  return (await parseJsonEnvelopeResponse(response, "schema service")).data;
+};
+
+export const parseJsonEnvelopeResponse = async (
+  response: Response,
+  serviceLabel: string,
+): Promise<SuccessEnvelope> => {
   if (!isJsonResponse(response)) {
     throw new FrontendApiError({
       code: "NON_JSON_RESPONSE",
       status: response.status,
-      message: "The schema service returned an unexpected response.",
+      message: `The ${serviceLabel} returned an unexpected response.`,
     });
   }
 
-  const envelope = parseEnvelope(await response.json());
+  const envelope = parseEnvelope(await response.json(), serviceLabel);
 
   if (!envelope.success) {
     const code = typeof envelope.error?.code === "string" ? envelope.error.code : "API_ERROR";
@@ -129,5 +139,8 @@ export const getJson = async (
     );
   }
 
-  return envelope.data;
+  return envelope;
 };
+
+export const getJsonData = async (response: Response, serviceLabel: string): Promise<unknown> =>
+  (await parseJsonEnvelopeResponse(response, serviceLabel)).data;

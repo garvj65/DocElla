@@ -26,12 +26,21 @@ export {
   EXTRACTION_WARNING_CODES,
   GROUNDING_MATCH_TYPES,
   GROUNDING_STATUSES,
+  buildPublicExtractionResultSchema,
+  extractionWarningCodeSchema,
+  extractionWarningSchema,
+  fieldReviewSchema,
+  groundingMatchTypeSchema,
+  groundingStatusSchema,
   type ExtractionWarning,
   type ExtractionWarningCode,
   type FieldReview,
   type FieldReviewMap,
   type GroundingMatchType,
   type GroundingStatus,
+  type PublicExtractionData,
+  type PublicExtractionMeta,
+  type PublicExtractionResult,
 } from "./contracts/extraction-review.js";
 
 export { defineDocument } from "./define-document.js";

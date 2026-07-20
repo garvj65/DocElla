@@ -12,17 +12,23 @@ import {
 
 interface SchemaSelectorProps {
   readonly onSchemaChange: (schemaId: string) => void;
+  readonly disabled?: boolean;
   readonly schemaId: string;
   readonly summaries: readonly PublicDocumentSummary[];
 }
 
-export function SchemaSelector({ onSchemaChange, schemaId, summaries }: SchemaSelectorProps) {
+export function SchemaSelector({
+  disabled = false,
+  onSchemaChange,
+  schemaId,
+  summaries,
+}: SchemaSelectorProps) {
   const selected = summaries.find((summary) => summary.id === schemaId);
 
   return (
     <div className="space-y-2">
       <Label id="schema-selector-label">Document schema</Label>
-      <Select onValueChange={onSchemaChange} value={schemaId}>
+      <Select disabled={disabled} onValueChange={onSchemaChange} value={schemaId}>
         <SelectTrigger aria-labelledby="schema-selector-label">
           <SelectValue placeholder="Choose a schema" />
         </SelectTrigger>

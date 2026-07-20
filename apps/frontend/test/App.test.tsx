@@ -11,7 +11,7 @@ describe("App shell", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders privacy messaging, accessible tabs, and no upload input", async () => {
+  it("renders privacy messaging, accessible tabs, and the T09 upload workflow", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
@@ -40,8 +40,12 @@ describe("App shell", () => {
     expect(screen.getByRole("tab", { name: "Form to PDF" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("tab", { name: "PDF to Form" }));
-    expect(screen.getByText(/Extraction review arrives in T09/i)).toBeInTheDocument();
-    expect(screen.queryByLabelText(/upload/i)).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "PDF to Form" })).toBeInTheDocument(),
+    );
+    expect(screen.getByLabelText(/PDF file/i)).toHaveAttribute("accept", "application/pdf,.pdf");
+    expect(screen.getByRole("button", { name: /extract/i })).toBeDisabled();
+    expect(screen.queryByText(/No upload begins automatically/i)).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("tab", { name: "Form to PDF" }));
     await waitFor(() =>
@@ -49,5 +53,5 @@ describe("App shell", () => {
     );
     expect(screen.getByLabelText(/Full name/)).toHaveAttribute("type", "text");
     expect(screen.getByLabelText(/Email/)).toHaveAttribute("type", "email");
-  });
+  }, 10000);
 });
