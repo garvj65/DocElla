@@ -261,6 +261,7 @@ export function ExtractionWorkspace({
           extractionId={result.id}
           ref={reviewRef}
           result={result.value}
+          schemaApi={schemaApi}
           onStartOver={startOver}
         />
       ) : null}

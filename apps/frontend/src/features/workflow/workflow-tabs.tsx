@@ -28,6 +28,7 @@ export function WorkflowTabs({
           {({ config, selectedTemplateId, selectedTemplateLabel }) => (
             <DynamicDocumentForm
               config={config}
+              schemaApi={schemaApi}
               selectedTemplateId={selectedTemplateId}
               selectedTemplateLabel={selectedTemplateLabel}
             />

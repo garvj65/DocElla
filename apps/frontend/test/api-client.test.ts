@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FrontendApiError } from "../src/api/api-error";
+import { parseSafePdfFilename } from "../src/api/api-client";
 import { createSchemaApi } from "../src/api/schema-api";
 import { everyFieldConfig, everyFieldSummary, successEnvelope } from "./support/schemas";
 
@@ -87,5 +88,117 @@ describe("schema API client", () => {
         code: "MALFORMED_RESPONSE",
       },
     );
+  });
+
+  it("posts exact PDF generation body and accepts binary PDFs", async () => {
+    const pdfBytes = new TextEncoder().encode("%PDF-1.7");
+    const fetchMock = mockFetch(
+      new Response(pdfBytes, {
+        headers: {
+          "content-disposition": 'attachment; filename="generated.pdf"',
+          "content-type": "application/pdf",
+        },
+      }),
+    );
+    const controller = new AbortController();
+    const api = createSchemaApi({ apiBaseUrl: "" });
+
+    await expect(
+      api.generatePdf({
+        config: everyFieldConfig,
+        flatten: false,
+        signal: controller.signal,
+        templateId: "synthetic-default",
+        values: { fullName: "Sensitive Sentinel" },
+      }),
+    ).resolves.toMatchObject({
+      filename: "generated.pdf",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/generate-pdf",
+      expect.objectContaining({
+        body: JSON.stringify({
+          flatten: false,
+          schemaType: "synthetic",
+          templateId: "synthetic-default",
+          values: { fullName: "Sensitive Sentinel" },
+        }),
+        headers: {
+          Accept: "application/pdf",
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+        signal: controller.signal,
+      }),
+    );
+  });
+
+  it("maps PDF JSON errors without exposing raw server details", async () => {
+    mockFetch(
+      jsonResponse(
+        {
+          error: { code: "PDF_GENERATION_FAILED", message: "C:\\internal\\template.pdf AcroForm" },
+          meta: { requestId: "req_pdf" },
+          success: false,
+        },
+        { status: 500 },
+      ),
+    );
+
+    await expect(
+      createSchemaApi({ apiBaseUrl: "" }).generatePdf({
+        config: everyFieldConfig,
+        templateId: "synthetic-default",
+        values: {},
+      }),
+    ).rejects.toMatchObject({
+      code: "PDF_GENERATION_FAILED",
+      requestId: "req_pdf",
+    });
+    await expect(
+      createSchemaApi({ apiBaseUrl: "" }).generatePdf({
+        config: everyFieldConfig,
+        templateId: "synthetic-default",
+        values: {},
+      }),
+    ).rejects.not.toThrow("AcroForm");
+  });
+
+  it("rejects invalid PDF responses and unsafe filenames", async () => {
+    mockFetch(new Response("{}", { headers: { "content-type": "application/json" } }));
+    await expect(
+      createSchemaApi({ apiBaseUrl: "" }).generatePdf({
+        config: everyFieldConfig,
+        templateId: "synthetic-default",
+        values: {},
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_PDF_RESPONSE" });
+
+    mockFetch(new Response(new Uint8Array(), { headers: { "content-type": "application/pdf" } }));
+    await expect(
+      createSchemaApi({ apiBaseUrl: "" }).generatePdf({
+        config: everyFieldConfig,
+        templateId: "synthetic-default",
+        values: {},
+      }),
+    ).rejects.toMatchObject({ code: "EMPTY_PDF_RESPONSE" });
+
+    mockFetch(
+      new Response(new TextEncoder().encode("nope"), {
+        headers: { "content-type": "application/pdf" },
+      }),
+    );
+    await expect(
+      createSchemaApi({ apiBaseUrl: "" }).generatePdf({
+        config: everyFieldConfig,
+        templateId: "synthetic-default",
+        values: {},
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_PDF_RESPONSE" });
+
+    expect(parseSafePdfFilename('attachment; filename="safe-name.pdf"')).toBe("safe-name.pdf");
+    expect(parseSafePdfFilename('attachment; filename="../secret.pdf"')).toBeUndefined();
+    expect(parseSafePdfFilename('attachment; filename="secret.txt"')).toBeUndefined();
   });
 });

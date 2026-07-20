@@ -6,12 +6,16 @@ import {
   type PublicDocumentConfig,
   type PublicSubmissionData,
 } from "@docella/schemas/public";
-import { RefreshCcw, ShieldCheck } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { Download, RefreshCcw, ShieldCheck, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { type Resolver, useForm } from "react-hook-form";
 
+import { FrontendApiError } from "../../api/api-error";
+import type { SchemaApi } from "../../api/schema-api";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader } from "../../components/ui/card";
+import { Label } from "../../components/ui/label";
+import { downloadPdf } from "../../lib/download-pdf";
 import { DynamicField } from "./dynamic-field";
 import { FormReadiness } from "./form-readiness";
 import { FormSummary } from "./form-summary";
@@ -19,14 +23,22 @@ import type { DynamicFormValues, ValidationState } from "./form-types";
 
 interface DynamicDocumentFormProps {
   readonly config: PublicDocumentConfig;
+  readonly schemaApi: SchemaApi;
   readonly selectedTemplateId: string;
   readonly selectedTemplateLabel: string;
+}
+
+export interface GenerationOptions {
+  readonly buttonLabel: string;
+  readonly schemaApi: SchemaApi;
+  readonly selectedTemplateId: string;
 }
 
 export interface SchemaDrivenFormProps {
   readonly config: PublicDocumentConfig;
   readonly fieldAccessory?: (fieldKey: string, dirty: boolean) => ReactNode;
   readonly footerContent?: ReactNode;
+  readonly generation?: GenerationOptions;
   readonly initialValues: PublicDefaultValues;
   readonly onReset?: () => void;
   readonly onValid: (values: PublicSubmissionData) => void;
@@ -38,6 +50,7 @@ export interface SchemaDrivenFormProps {
 
 export function DynamicDocumentForm({
   config,
+  schemaApi,
   selectedTemplateId,
   selectedTemplateLabel,
 }: DynamicDocumentFormProps) {
@@ -45,6 +58,7 @@ export function DynamicDocumentForm({
     <DynamicDocumentFormInner
       key={`${config.id}-${String(config.version)}`}
       config={config}
+      schemaApi={schemaApi}
       selectedTemplateId={selectedTemplateId}
       selectedTemplateLabel={selectedTemplateLabel}
     />
@@ -53,6 +67,7 @@ export function DynamicDocumentForm({
 
 function DynamicDocumentFormInner({
   config,
+  schemaApi,
   selectedTemplateId,
   selectedTemplateLabel,
 }: DynamicDocumentFormProps) {
@@ -61,11 +76,7 @@ function DynamicDocumentFormInner({
   return (
     <SchemaDrivenForm
       config={config}
-      footerContent={
-        <Button disabled type="button" variant="ghost">
-          PDF download connects in T10
-        </Button>
-      }
+      generation={{ buttonLabel: "Generate PDF", schemaApi, selectedTemplateId }}
       initialValues={defaultValues}
       onValid={() => undefined}
       resetLabel="Reset form"
@@ -88,6 +99,7 @@ export function SchemaDrivenForm({
   config,
   fieldAccessory,
   footerContent,
+  generation,
   initialValues,
   onReset,
   onValid,
@@ -99,6 +111,18 @@ export function SchemaDrivenForm({
   readonly children?: ReactNode | ((validationState: ValidationState) => ReactNode);
 }) {
   const [validationState, setValidationState] = useState<ValidationState>("idle");
+  const [flatten, setFlatten] = useState(
+    config.templates.find((template) => template.id === generation?.selectedTemplateId)
+      ?.flattenByDefault ?? true,
+  );
+  const [generationState, setGenerationState] = useState<
+    "idle" | "generating" | "success" | "error"
+  >("idle");
+  const [generationError, setGenerationError] = useState("");
+  const [requestId, setRequestId] = useState<string | undefined>();
+  const activeRequestRef = useRef(0);
+  const abortControllerRef = useRef<AbortController | undefined>(undefined);
+  const errorRef = useRef<HTMLDivElement>(null);
   const schema = useMemo(() => buildPublicSubmissionSchema(config), [config]);
   const {
     control,
@@ -112,10 +136,95 @@ export function SchemaDrivenForm({
     resolver: zodResolver(schema) as unknown as Resolver<DynamicFormValues>,
   });
 
+  const cancelGeneration = useCallback(() => {
+    activeRequestRef.current += 1;
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = undefined;
+  }, []);
+
+  useEffect(() => {
+    const selectedTemplate = config.templates.find(
+      (template) => template.id === generation?.selectedTemplateId,
+    );
+    setFlatten(selectedTemplate?.flattenByDefault ?? true);
+    setGenerationState("idle");
+    setGenerationError("");
+    setRequestId(undefined);
+    cancelGeneration();
+  }, [cancelGeneration, config.templates, generation?.selectedTemplateId]);
+
+  useEffect(
+    () => () => {
+      cancelGeneration();
+    },
+    [cancelGeneration],
+  );
+
+  useEffect(() => {
+    if (generationState === "error") {
+      errorRef.current?.focus();
+    }
+  }, [generationState]);
+
   const validateFields = handleSubmit(
     (values) => {
       setValidationState("valid");
       onValid(values);
+    },
+    () => {
+      setValidationState("invalid");
+      void trigger(undefined, { shouldFocus: true });
+    },
+  );
+
+  const generatePdf = handleSubmit(
+    async (values) => {
+      if (generation === undefined) {
+        return;
+      }
+
+      cancelGeneration();
+      const generationId = activeRequestRef.current + 1;
+      activeRequestRef.current = generationId;
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+      setValidationState("valid");
+      setGenerationState("generating");
+      setGenerationError("");
+      setRequestId(undefined);
+
+      try {
+        const pdf = await generation.schemaApi.generatePdf({
+          config,
+          flatten,
+          signal: abortController.signal,
+          templateId: generation.selectedTemplateId,
+          values,
+        });
+
+        if (activeRequestRef.current !== generationId || abortController.signal.aborted) {
+          return;
+        }
+
+        downloadPdf(pdf.bytes, pdf.filename);
+        setGenerationState("success");
+      } catch (error) {
+        if (abortController.signal.aborted || activeRequestRef.current !== generationId) {
+          return;
+        }
+
+        if (error instanceof FrontendApiError) {
+          setRequestId(error.requestId);
+          setGenerationError(generationMessage(error.code));
+        } else {
+          setGenerationError("PDF generation failed. Try again in a moment.");
+        }
+        setGenerationState("error");
+      } finally {
+        if (activeRequestRef.current === generationId) {
+          abortControllerRef.current = undefined;
+        }
+      }
     },
     () => {
       setValidationState("invalid");
@@ -159,8 +268,12 @@ export function SchemaDrivenForm({
                 type="button"
                 variant="secondary"
                 onClick={() => {
+                  cancelGeneration();
                   reset(initialValues);
                   setValidationState("idle");
+                  setGenerationState("idle");
+                  setGenerationError("");
+                  setRequestId(undefined);
                   onReset?.();
                 }}
               >
@@ -169,6 +282,64 @@ export function SchemaDrivenForm({
               </Button>
               {footerContent}
             </div>
+            {generation === undefined ? null : (
+              <>
+                <div className="grid gap-4 rounded-md border border-[var(--color-border)] p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                  <div className="space-y-2">
+                    <Label htmlFor="pdf-output-mode">PDF output</Label>
+                    <select
+                      className="min-h-11 w-full rounded-md border border-[var(--color-border)] bg-white px-3 py-2 text-sm"
+                      disabled={generationState === "generating"}
+                      id="pdf-output-mode"
+                      onChange={(event) => {
+                        setFlatten(event.target.value === "flattened");
+                      }}
+                      value={flatten ? "flattened" : "editable"}
+                    >
+                      <option value="flattened">Flattened PDF</option>
+                      <option value="editable">Editable PDF</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <Button
+                      disabled={
+                        generation.selectedTemplateId.length === 0 ||
+                        generationState === "generating"
+                      }
+                      type="button"
+                      onClick={() => {
+                        void generatePdf();
+                      }}
+                    >
+                      <Download aria-hidden="true" className="h-4 w-4" />
+                      {generationState === "generating" ? "Generating..." : generation.buttonLabel}
+                    </Button>
+                    {generationState === "generating" ? (
+                      <Button type="button" variant="secondary" onClick={cancelGeneration}>
+                        <X aria-hidden="true" className="h-4 w-4" />
+                        Cancel
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+                <div aria-live="polite" role="status">
+                  {generationState === "generating" ? "Generating PDF." : null}
+                  {generationState === "success" ? "PDF download started." : null}
+                </div>
+                {generationState === "error" ? (
+                  <div
+                    aria-live="assertive"
+                    className="rounded-md border border-[var(--color-danger)] p-3 text-sm"
+                    ref={errorRef}
+                    role="alert"
+                    tabIndex={-1}
+                  >
+                    <p>{generationError}</p>
+                    {requestId !== undefined ? <p>Request ID: {requestId}</p> : null}
+                  </div>
+                ) : null}
+              </>
+            )}
           </form>
         </CardContent>
       </Card>
@@ -176,3 +347,30 @@ export function SchemaDrivenForm({
     </div>
   );
 }
+
+const generationMessage = (code: string): string => {
+  switch (code) {
+    case "INVALID_GENERATION_REQUEST":
+      return "The PDF request could not be accepted.";
+    case "INVALID_GENERATION_VALUES":
+      return "Some reviewed fields need attention before PDF generation.";
+    case "UNKNOWN_SCHEMA":
+      return "The selected schema is no longer available.";
+    case "UNKNOWN_TEMPLATE":
+      return "The selected template is no longer available.";
+    case "PDF_VALUE_UNSUPPORTED":
+      return "One or more values cannot be placed in this PDF.";
+    case "PDF_TEMPLATE_UNAVAILABLE":
+      return "The selected PDF template is unavailable.";
+    case "PDF_TEMPLATE_INVALID":
+      return "The selected PDF template cannot be used.";
+    case "PDF_TEMPLATE_MAPPING_INVALID":
+      return "This template is not compatible with the selected schema.";
+    case "PDF_GENERATION_FAILED":
+      return "PDF generation failed. Try again in a moment.";
+    case "GENERATION_RATE_LIMITED":
+      return "PDF generation is temporarily rate limited. Try again shortly.";
+    default:
+      return "PDF generation failed. Try again in a moment.";
+  }
+};
