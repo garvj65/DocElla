@@ -147,6 +147,8 @@ const buildFieldShape = <T extends z.ZodType>(
   return shape;
 };
 
+const roundTwo = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100;
+
 export const buildPublicExtractionResultSchema = (
   config: PublicDocumentConfig,
 ): z.ZodType<PublicExtractionResult> => {
@@ -206,6 +208,8 @@ export const buildPublicExtractionResultSchema = (
       const requiredMissingFields = reviews.filter(
         ([key, review]) => review.status === "missing" && requiredFieldKeys.has(key),
       ).length;
+      let includedScore = 0;
+      let includedFieldCount = 0;
 
       const expectedCounts = {
         verifiedFields,
@@ -222,6 +226,64 @@ export const buildPublicExtractionResultSchema = (
             path: ["meta", key],
           });
         }
+      }
+
+      for (const field of config.fields) {
+        const value = result.data.values[field.key];
+        const review = result.data.review[field.key];
+
+        if (review === undefined) {
+          context.addIssue({
+            code: "custom",
+            message: "Review entry is missing for configured field.",
+            path: ["data", "review", field.key],
+          });
+          continue;
+        }
+
+        if (value === null && review.status !== "missing") {
+          context.addIssue({
+            code: "custom",
+            message: "Null extraction values must have missing review status.",
+            path: ["data", "review", field.key, "status"],
+          });
+        }
+
+        if (value !== null && review.status === "missing") {
+          context.addIssue({
+            code: "custom",
+            message: "Present extraction values cannot have missing review status.",
+            path: ["data", "review", field.key, "status"],
+          });
+        }
+
+        if (value !== null) {
+          includedFieldCount += 1;
+          includedScore += review.confidence;
+        } else if (field.required) {
+          includedFieldCount += 1;
+        }
+      }
+
+      const expectedConfidence = roundTwo(
+        includedFieldCount === 0 ? 0 : includedScore / includedFieldCount,
+      );
+      if (result.meta.confidence !== expectedConfidence) {
+        context.addIssue({
+          code: "custom",
+          message: "Extraction confidence metadata is inconsistent with field review states.",
+          path: ["meta", "confidence"],
+        });
+      }
+
+      const expectedReviewRequired =
+        needsReviewFields > 0 || requiredMissingFields > 0 || expectedConfidence < 0.75;
+      if (result.meta.reviewRequired !== expectedReviewRequired) {
+        context.addIssue({
+          code: "custom",
+          message: "Extraction review-required metadata is inconsistent with review summary.",
+          path: ["meta", "reviewRequired"],
+        });
       }
     });
 };

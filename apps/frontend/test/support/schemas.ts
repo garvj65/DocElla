@@ -130,7 +130,7 @@ export const buildExtractionResult = (
       values,
     },
     meta: {
-      confidence: 0.9,
+      confidence: 1,
       extractedCharacters: 300,
       missingFields: 0,
       model: "hidden-model",

@@ -31,6 +31,7 @@ describe("extraction review contracts", () => {
 const verified: FieldReview = { confidence: 1, matchType: "exact", status: "verified" };
 const normalized: FieldReview = { confidence: 0.9, matchType: "normalized", status: "verified" };
 const fuzzy: FieldReview = { confidence: 0.6, matchType: "fuzzy", status: "needs_review" };
+const unmatched: FieldReview = { confidence: 0.25, matchType: "none", status: "needs_review" };
 const missing: FieldReview = { confidence: 0, matchType: "none", status: "missing" };
 
 const valueForField = (field: PublicDocumentConfig["fields"][number]): string | number | null => {
@@ -60,7 +61,7 @@ const buildValidResult = (config: PublicDocumentConfig): PublicExtractionResult 
     review[field.key] = index === 0 ? normalized : verified;
   });
 
-  return {
+  return withCoherentMeta(config, {
     data: {
       documentVersion: config.version,
       review,
@@ -68,7 +69,7 @@ const buildValidResult = (config: PublicDocumentConfig): PublicExtractionResult 
       values,
     },
     meta: {
-      confidence: 0.95,
+      confidence: 0,
       extractedCharacters: 500,
       missingFields: 0,
       model: "safe-hidden-model",
@@ -85,6 +86,54 @@ const buildValidResult = (config: PublicDocumentConfig): PublicExtractionResult 
           message: "Some fields may need review.",
         },
       ],
+    },
+  });
+};
+
+const roundTwo = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100;
+
+const withCoherentMeta = (
+  config: PublicDocumentConfig,
+  result: PublicExtractionResult,
+): PublicExtractionResult => {
+  let verifiedFields = 0;
+  let needsReviewFields = 0;
+  let missingFields = 0;
+  let requiredMissingFields = 0;
+  let includedFieldCount = 0;
+  let includedScore = 0;
+
+  for (const field of config.fields) {
+    const review = result.data.review[field.key];
+    const value = result.data.values[field.key];
+
+    if (review.status === "verified") verifiedFields += 1;
+    if (review.status === "needs_review") needsReviewFields += 1;
+    if (review.status === "missing") {
+      missingFields += 1;
+      if (field.required) requiredMissingFields += 1;
+    }
+
+    if (value !== null) {
+      includedFieldCount += 1;
+      includedScore += review.confidence;
+    } else if (field.required) {
+      includedFieldCount += 1;
+    }
+  }
+
+  const confidence = roundTwo(includedFieldCount === 0 ? 0 : includedScore / includedFieldCount);
+
+  return {
+    ...result,
+    meta: {
+      ...result.meta,
+      confidence,
+      missingFields,
+      needsReviewFields,
+      requiredMissingFields,
+      reviewRequired: needsReviewFields > 0 || requiredMissingFields > 0 || confidence < 0.75,
+      verifiedFields,
     },
   };
 };
@@ -141,26 +190,96 @@ describe("public extraction result runtime schema", () => {
   it("rejects invalid review combinations and inconsistent counts", () => {
     const invalidCombination = buildValidResult(jobConfig);
     (invalidCombination.data.review as Record<string, FieldReview>).fullName = fuzzy;
-    invalidCombination.meta.verifiedFields -= 1;
-    invalidCombination.meta.needsReviewFields += 1;
-    expect(buildPublicExtractionResultSchema(jobConfig).safeParse(invalidCombination).success).toBe(
-      true,
-    );
+    const coherentNeedsReview = withCoherentMeta(jobConfig, invalidCombination);
+    expect(
+      buildPublicExtractionResultSchema(jobConfig).safeParse(coherentNeedsReview).success,
+    ).toBe(true);
 
-    (invalidCombination.data.review as Record<string, FieldReview>).fullName = {
+    (coherentNeedsReview.data.review as Record<string, FieldReview>).fullName = {
       confidence: 1,
       matchType: "fuzzy",
       status: "verified",
     };
-    expect(buildPublicExtractionResultSchema(jobConfig).safeParse(invalidCombination).success).toBe(
-      false,
-    );
+    expect(
+      buildPublicExtractionResultSchema(jobConfig).safeParse(coherentNeedsReview).success,
+    ).toBe(false);
 
     const inconsistentCounts = buildValidResult(jobConfig);
     inconsistentCounts.meta.missingFields = 1;
     expect(buildPublicExtractionResultSchema(jobConfig).safeParse(inconsistentCounts).success).toBe(
       false,
     );
+  });
+
+  it("rejects value and review contradictions", () => {
+    const nullVerified = buildValidResult(jobConfig);
+    nullVerified.data.values.fullName = null;
+    expect(buildPublicExtractionResultSchema(jobConfig).safeParse(nullVerified).success).toBe(
+      false,
+    );
+
+    const nullNeedsReview = buildValidResult(jobConfig);
+    nullNeedsReview.data.values.fullName = null;
+    nullNeedsReview.data.review.fullName = fuzzy;
+    const coherentNullNeedsReview = withCoherentMeta(jobConfig, nullNeedsReview);
+    expect(
+      buildPublicExtractionResultSchema(jobConfig).safeParse(coherentNullNeedsReview).success,
+    ).toBe(false);
+
+    const presentMissing = buildValidResult(jobConfig);
+    presentMissing.data.review.fullName = missing;
+    const coherentPresentMissing = withCoherentMeta(jobConfig, presentMissing);
+    expect(
+      buildPublicExtractionResultSchema(jobConfig).safeParse(coherentPresentMissing).success,
+    ).toBe(false);
+  });
+
+  it("rejects inconsistent aggregate confidence and review-required metadata", () => {
+    const badConfidence = buildValidResult(jobConfig);
+    badConfidence.meta.confidence = 0.42;
+    expect(buildPublicExtractionResultSchema(jobConfig).safeParse(badConfidence).success).toBe(
+      false,
+    );
+
+    const needsReview = buildValidResult(jobConfig);
+    needsReview.data.review.fullName = unmatched;
+    const coherentNeedsReview = withCoherentMeta(jobConfig, needsReview);
+    coherentNeedsReview.meta.reviewRequired = false;
+    expect(
+      buildPublicExtractionResultSchema(jobConfig).safeParse(coherentNeedsReview).success,
+    ).toBe(false);
+
+    const requiredMissing = buildValidResult(jobConfig);
+    requiredMissing.data.values.fullName = null;
+    requiredMissing.data.review.fullName = missing;
+    const coherentRequiredMissing = withCoherentMeta(jobConfig, requiredMissing);
+    coherentRequiredMissing.meta.reviewRequired = false;
+    expect(
+      buildPublicExtractionResultSchema(jobConfig).safeParse(coherentRequiredMissing).success,
+    ).toBe(false);
+
+    const lowConfidenceConfig: PublicDocumentConfig = {
+      ...jobConfig,
+      fields: [{ ...jobConfig.fields[0], required: false }],
+    };
+    const lowConfidence = withCoherentMeta(lowConfidenceConfig, {
+      ...buildValidResult(lowConfidenceConfig),
+      data: {
+        ...buildValidResult(lowConfidenceConfig).data,
+        values: { fullName: null },
+        review: { fullName: missing },
+      },
+    });
+    lowConfidence.meta.reviewRequired = false;
+    expect(
+      buildPublicExtractionResultSchema(lowConfidenceConfig).safeParse(lowConfidence).success,
+    ).toBe(false);
+
+    const cleanHighConfidence = buildValidResult(jobConfig);
+    cleanHighConfidence.meta.reviewRequired = true;
+    expect(
+      buildPublicExtractionResultSchema(jobConfig).safeParse(cleanHighConfidence).success,
+    ).toBe(false);
   });
 
   it("rejects invalid warning field keys and internal field/path properties", () => {

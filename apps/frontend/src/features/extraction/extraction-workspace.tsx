@@ -17,13 +17,17 @@ import { PdfUploadControl } from "./pdf-upload-control";
 import { validatePdfFile, type PdfFileValidationResult } from "./pdf-file-validation";
 import { useExtractionMutation } from "./use-extraction-mutation";
 
+interface ExtractionWorkspaceProps {
+  readonly extractionApi: ExtractionApi;
+  readonly schemaApi: SchemaApi;
+  readonly validateFile?: (files: readonly File[]) => Promise<PdfFileValidationResult>;
+}
+
 export function ExtractionWorkspace({
   extractionApi,
   schemaApi,
-}: {
-  readonly extractionApi: ExtractionApi;
-  readonly schemaApi: SchemaApi;
-}) {
+  validateFile = validatePdfFile,
+}: ExtractionWorkspaceProps) {
   const summariesQuery = useDocumentSummaries(schemaApi);
   const [selectedSchemaId, setSelectedSchemaId] = useState("");
   const configQuery = useDocumentConfig(schemaApi, selectedSchemaId);
@@ -34,6 +38,7 @@ export function ExtractionWorkspace({
     readonly value: PublicExtractionResult;
   } | null>(null);
   const requestIdRef = useRef(0);
+  const validationIdRef = useRef(0);
   const reviewRef = useRef<HTMLDivElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   const mutation = useExtractionMutation(extractionApi);
@@ -49,33 +54,39 @@ export function ExtractionWorkspace({
     }
   }, [selectedSchemaId, summariesQuery.data]);
 
-  const clearExtractionState = () => {
-    setResult(null);
-    mutation.reset();
+  const invalidateValidation = () => {
+    validationIdRef.current += 1;
   };
 
-  const cancelAndClear = () => {
+  const cancelActiveExtraction = () => {
     requestIdRef.current += 1;
     mutation.cancel();
-    clearExtractionState();
+    setResult(null);
   };
 
   const handleSchemaChange = (schemaId: string) => {
-    cancelAndClear();
+    invalidateValidation();
+    cancelActiveExtraction();
     setSelectedFile(null);
     setFileValidation(null);
     setSelectedSchemaId(schemaId);
   };
 
   const handleFilesSelected = async (files: readonly File[]) => {
-    cancelAndClear();
+    const validationId = validationIdRef.current + 1;
+    validationIdRef.current = validationId;
+    cancelActiveExtraction();
     setSelectedFile(files.length === 1 ? (files[0] ?? null) : null);
-    const validation = await validatePdfFile(files);
-    setFileValidation(validation);
+    setFileValidation(null);
+    const validation = await validateFile(files);
+    if (validationIdRef.current === validationId) {
+      setFileValidation(validation);
+    }
   };
 
   const startOver = () => {
-    cancelAndClear();
+    invalidateValidation();
+    cancelActiveExtraction();
     setSelectedFile(null);
     setFileValidation(null);
   };
@@ -138,6 +149,14 @@ export function ExtractionWorkspace({
       errorRef.current?.focus();
     }
   }, [mutation.isError]);
+
+  useEffect(
+    () => () => {
+      invalidateValidation();
+      requestIdRef.current += 1;
+    },
+    [],
+  );
 
   const selectedSchemaLabel = useMemo(
     () =>
@@ -204,7 +223,8 @@ export function ExtractionWorkspace({
             file={selectedFile}
             validation={fileValidation}
             onClear={() => {
-              cancelAndClear();
+              invalidateValidation();
+              cancelActiveExtraction();
               setSelectedFile(null);
               setFileValidation(null);
             }}
@@ -214,9 +234,7 @@ export function ExtractionWorkspace({
             <ExtractionProgress
               filename={selectedFile.name}
               schemaLabel={selectedSchemaLabel}
-              onCancel={() => {
-                mutation.cancel();
-              }}
+              onCancel={cancelActiveExtraction}
             />
           ) : null}
           {mutation.isError ? (

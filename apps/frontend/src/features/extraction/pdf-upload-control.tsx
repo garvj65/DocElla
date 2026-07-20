@@ -62,7 +62,9 @@ export function PdfUploadControl({
           disabled={disabled}
           id={inputId}
           onChange={(event) => {
-            onFilesSelected(Array.from(event.currentTarget.files ?? []));
+            const files = Array.from(event.currentTarget.files ?? []);
+            event.currentTarget.value = "";
+            onFilesSelected(files);
           }}
           ref={inputRef}
           type="file"
