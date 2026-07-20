@@ -5,10 +5,15 @@ import {
   buildDefaultValues,
   buildExtractionSchema,
   buildJsonSchema,
+  buildPublicDefaultValues,
   buildPublicDocumentConfig,
+  buildPublicSubmissionSchema,
   buildSubmissionSchema,
   defineDocument,
   jobApplicationDefinition,
+  listPublicDocumentSummaries,
+  publicDocumentConfigSchema,
+  publicDocumentSummarySchema,
 } from "../src/index";
 
 const realDefinitions = [jobApplicationDefinition, basicInvoiceDefinition] as const;
@@ -298,12 +303,163 @@ describe("buildPublicDocumentConfig", () => {
   });
 });
 
+describe("public runtime schemas", () => {
+  it("parses registered public configs and summaries", () => {
+    expect(
+      publicDocumentConfigSchema.safeParse(buildPublicDocumentConfig(jobApplicationDefinition))
+        .success,
+    ).toBe(true);
+    expect(
+      publicDocumentConfigSchema.safeParse(buildPublicDocumentConfig(basicInvoiceDefinition))
+        .success,
+    ).toBe(true);
+
+    for (const summary of listPublicDocumentSummaries()) {
+      expect(publicDocumentSummarySchema.safeParse(summary).success).toBe(true);
+    }
+  });
+
+  it("rejects internal and malformed public properties", () => {
+    const config = buildPublicDocumentConfig(jobApplicationDefinition);
+
+    expect(
+      publicDocumentConfigSchema.safeParse({
+        ...config,
+        templates: [{ ...config.templates[0], assetPath: "templates/private.pdf" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      publicDocumentConfigSchema.safeParse({
+        ...config,
+        fields: [{ ...config.fields[0], pdfFieldName: "private.field" }],
+      }).success,
+    ).toBe(false);
+    expect(publicDocumentConfigSchema.safeParse({ ...config, extra: true }).success).toBe(false);
+    expect(publicDocumentConfigSchema.safeParse({ ...config, id: " " }).success).toBe(false);
+    expect(publicDocumentConfigSchema.safeParse({ ...config, version: 0 }).success).toBe(false);
+  });
+
+  it("rejects invalid select configurations", () => {
+    const config = buildPublicDocumentConfig(jobApplicationDefinition);
+
+    expect(
+      publicDocumentConfigSchema.safeParse({
+        ...config,
+        fields: [
+          {
+            key: "status",
+            label: "Status",
+            description: "Status",
+            kind: "select",
+            required: true,
+            options: [],
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      publicDocumentConfigSchema.safeParse({
+        ...config,
+        fields: [{ ...config.fields[0], options: [{ label: "Bad", value: "bad" }] }],
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("buildPublicSubmissionSchema", () => {
+  it("matches internal submission semantics without internal definitions", () => {
+    const config = buildPublicDocumentConfig(jobApplicationDefinition);
+    const schema = buildPublicSubmissionSchema(config);
+    const validRequiredOnly = {
+      fullName: "Alex Morgan",
+      email: "alex@example.com",
+      phone: "555-0100",
+      address: "123 Main",
+      positionAppliedFor: "Analyst",
+    };
+
+    expect(schema.safeParse(validRequiredOnly).success).toBe(true);
+    expect(schema.safeParse({ ...validRequiredOnly, fullName: " " }).success).toBe(false);
+    expect(schema.safeParse({ ...validRequiredOnly, email: "not-email" }).success).toBe(false);
+    expect(schema.safeParse({ ...validRequiredOnly, availableStartDate: "" }).success).toBe(true);
+    expect(schema.safeParse({ ...validRequiredOnly, availableStartDate: null }).success).toBe(true);
+    expect(schema.safeParse({ ...validRequiredOnly, availableStartDate: "tomorrow" }).success).toBe(
+      false,
+    );
+    expect(schema.safeParse({ ...validRequiredOnly, yearsOfExperience: null }).success).toBe(true);
+    expect(schema.safeParse({ ...validRequiredOnly, yearsOfExperience: 5 }).success).toBe(true);
+    expect(schema.safeParse({ ...validRequiredOnly, yearsOfExperience: "" }).success).toBe(false);
+    expect(schema.safeParse({ ...validRequiredOnly, extra: "nope" }).success).toBe(false);
+  });
+
+  it("validates public select option values", () => {
+    const config = buildPublicDocumentConfig(
+      defineDocument({
+        id: "public-select-builder",
+        version: 1,
+        label: "Public Select Builder",
+        description: "A public select builder document.",
+        fields: [
+          {
+            key: "requiredStatus",
+            label: "Required status",
+            description: "A required status.",
+            kind: "select",
+            required: true,
+            options: [{ label: "Open", value: "open" }],
+            pdfFieldName: "select.required_status",
+          },
+          {
+            key: "optionalStatus",
+            label: "Optional status",
+            description: "An optional status.",
+            kind: "select",
+            required: false,
+            options: [{ label: "Closed", value: "closed" }],
+            pdfFieldName: "select.optional_status",
+          },
+        ],
+        templates: [
+          {
+            id: "public-select-default",
+            label: "Public Select Default",
+            assetPath: "templates/public-select.pdf",
+            flattenByDefault: true,
+          },
+        ],
+      } as const),
+    );
+    const schema = buildPublicSubmissionSchema(config);
+
+    expect(schema.safeParse({ requiredStatus: "open" }).success).toBe(true);
+    expect(schema.safeParse({ requiredStatus: "open", optionalStatus: "" }).success).toBe(true);
+    expect(schema.safeParse({ requiredStatus: "open", optionalStatus: null }).success).toBe(true);
+    expect(schema.safeParse({ requiredStatus: "" }).success).toBe(false);
+    expect(schema.safeParse({ requiredStatus: "pending" }).success).toBe(false);
+  });
+});
+
 describe("buildDefaultValues", () => {
   it("creates deterministic defaults for every field", () => {
     const first = buildDefaultValues(jobApplicationDefinition);
     const second = buildDefaultValues(jobApplicationDefinition);
 
     expect(Object.keys(first)).toEqual(jobApplicationDefinition.fields.map((field) => field.key));
+    expect(first.fullName).toBe("");
+    expect(first.availableStartDate).toBe("");
+    expect(first.yearsOfExperience).toBeNull();
+    expect(first.salaryExpectation).toBeNull();
+    expect(second).toEqual(first);
+  });
+});
+
+describe("buildPublicDefaultValues", () => {
+  it("creates deterministic public defaults for every field", () => {
+    const config = buildPublicDocumentConfig(jobApplicationDefinition);
+    const first = buildPublicDefaultValues(config);
+    const second = buildPublicDefaultValues(config);
+
+    expect(Object.keys(first)).toEqual(config.fields.map((field) => field.key));
     expect(first.fullName).toBe("");
     expect(first.availableStartDate).toBe("");
     expect(first.yearsOfExperience).toBeNull();

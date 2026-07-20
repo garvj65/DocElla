@@ -1,15 +1,25 @@
-import { DOCELLA_PROJECT_NAME } from "@docella/schemas";
+import { useMemo } from "react";
 
+import { createSchemaApi } from "./api/schema-api";
+import { AppErrorBoundary } from "./app/app-error-boundary";
+import { AppFooter } from "./components/app-footer";
+import { AppHeader } from "./components/app-header";
+import type { FrontendEnvironment } from "./config/environment";
+import { WorkflowTabs } from "./features/workflow/workflow-tabs";
 import "./styles.css";
 
-export function App() {
+export function App({ environment }: { readonly environment: FrontendEnvironment }) {
+  const schemaApi = useMemo(() => createSchemaApi(environment), [environment]);
+
   return (
-    <main className="app-shell">
-      <section className="intro" aria-labelledby="page-title">
-        <p className="kicker">PDF ⇄ Form</p>
-        <h1 id="page-title">{DOCELLA_PROJECT_NAME}</h1>
-        <p className="status">Application scaffold is ready for the next implementation task.</p>
-      </section>
-    </main>
+    <div className="min-h-screen bg-[var(--color-app)] text-[var(--color-ink)]">
+      <AppHeader />
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+        <AppErrorBoundary>
+          <WorkflowTabs schemaApi={schemaApi} />
+        </AppErrorBoundary>
+      </main>
+      <AppFooter />
+    </div>
   );
 }

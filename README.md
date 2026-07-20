@@ -45,6 +45,44 @@ npm run dev -w @docella/backend
 - Frontend: http://localhost:5173
 - Backend: http://localhost:3001
 
+## Frontend
+
+The frontend is a React 19 + Vite application. Tailwind CSS is integrated through
+the Vite plugin, with local CSS tokens for the DocElla application shell. Data
+loading uses TanStack Query, form state uses React Hook Form, and field validation
+uses the shared public Zod builders from `@docella/schemas`.
+
+Set `VITE_API_BASE_URL` when the API is not same-origin:
+
+```env
+VITE_API_BASE_URL=http://localhost:3001
+```
+
+The frontend loads only public schema configuration:
+
+- `GET /api/schemas`
+- `GET /api/schemas/:schemaType`
+
+The form renderer supports public field kinds `text`, `textarea`, `email`,
+`phone`, `date`, `number`, `currency`, and `select`. It renders labels,
+descriptions, required indicators, placeholders, local validation errors, schema
+selection, and registered template selection from public API responses. Runtime
+API responses are validated before rendering, and local submission validation is
+built from public configuration rather than internal document definitions.
+
+Accessible primitives are implemented locally with Radix Label, Select, Tabs,
+and Slot. The UI includes responsive loading, empty, and error states, visible
+focus styles, and no authentication, analytics, routing, upload library, or state
+store.
+
+T08 intentionally does not send form values to the backend. Values are not
+persisted in browser storage, URLs, cookies, or query keys. The frontend makes no
+`POST /api/extract`, no `POST /api/generate-pdf`, and no provider request.
+
+PDF upload and extraction review UI are deferred to T09. PDF generation and
+download UI are deferred to T10. Public API config does not contain internal
+template asset paths or PDF field names, and the frontend does not render them.
+
 ## Backend API
 
 Run the backend during development with:
