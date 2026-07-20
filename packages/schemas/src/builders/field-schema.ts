@@ -1,13 +1,14 @@
 import { z } from "zod";
 
-import type { FieldDefinition, SelectFieldDefinition } from "../contracts/field-definition.js";
+import type { PublicFieldConfig } from "../contracts/public-document-config.js";
+import type { FieldDefinition, SelectOption } from "../contracts/field-definition.js";
 
 const nonblank = (value: string): boolean => value.trim().length > 0;
 const finiteNumber = (): z.ZodNumber =>
   z.number().refine(Number.isFinite, "Expected a finite number.");
 
-const enumValues = (field: SelectFieldDefinition): [string, ...string[]] =>
-  field.options.map((option) => option.value) as [string, ...string[]];
+const enumValues = (options: readonly SelectOption[]): [string, ...string[]] =>
+  options.map((option) => option.value) as [string, ...string[]];
 
 export const buildExtractionFieldSchema = (field: FieldDefinition): z.ZodType => {
   switch (field.kind) {
@@ -23,11 +24,13 @@ export const buildExtractionFieldSchema = (field: FieldDefinition): z.ZodType =>
     case "currency":
       return finiteNumber().describe(field.description);
     case "select":
-      return z.enum(enumValues(field)).describe(field.description);
+      return z.enum(enumValues(field.options)).describe(field.description);
   }
 };
 
-export const buildSubmissionFieldSchema = (field: FieldDefinition): z.ZodType => {
+export const buildSubmissionFieldSchema = (
+  field: FieldDefinition | PublicFieldConfig,
+): z.ZodType => {
   switch (field.kind) {
     case "text":
     case "textarea":
@@ -53,10 +56,14 @@ export const buildSubmissionFieldSchema = (field: FieldDefinition): z.ZodType =>
     case "currency":
       return field.required ? finiteNumber() : finiteNumber().nullable().optional();
     case "select":
+      if (field.options === undefined || field.options.length === 0) {
+        throw new Error("Select fields must define at least one option.");
+      }
+
       return field.required
-        ? z.enum(enumValues(field))
+        ? z.enum(enumValues(field.options))
         : z
-            .union([z.literal(""), z.enum(enumValues(field))])
+            .union([z.literal(""), z.enum(enumValues(field.options))])
             .nullable()
             .optional();
   }

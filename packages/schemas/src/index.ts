@@ -15,6 +15,14 @@ export type {
   PublicTemplateConfig,
 } from "./contracts/public-document-config.js";
 export {
+  fieldKindSchema,
+  publicDocumentConfigSchema,
+  publicDocumentSummarySchema,
+  publicFieldConfigSchema,
+  publicTemplateConfigSchema,
+  selectOptionSchema,
+} from "./contracts/public-runtime-schemas.js";
+export {
   EXTRACTION_WARNING_CODES,
   GROUNDING_MATCH_TYPES,
   GROUNDING_STATUSES,
@@ -47,6 +55,14 @@ export {
   buildPublicDocumentConfig,
   buildPublicDocumentSummary,
 } from "./builders/build-public-config.js";
+export {
+  buildPublicDefaultValues,
+  buildPublicSubmissionSchema,
+  type PublicDefaultValue,
+  type PublicDefaultValues,
+  type PublicSubmissionData,
+  type PublicSubmissionSchema,
+} from "./builders/build-public-submission-schema.js";
 export {
   buildSubmissionSchema,
   type SubmissionData,

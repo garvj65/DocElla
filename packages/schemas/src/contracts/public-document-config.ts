@@ -12,8 +12,8 @@ export interface PublicFieldConfig {
   readonly description: string;
   readonly kind: FieldKind;
   readonly required: boolean;
-  readonly placeholder?: string;
-  readonly options?: readonly SelectOption[];
+  readonly placeholder?: string | undefined;
+  readonly options?: readonly SelectOption[] | undefined;
 }
 
 export interface PublicDocumentConfig {
