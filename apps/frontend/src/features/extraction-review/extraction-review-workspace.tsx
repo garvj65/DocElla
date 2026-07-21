@@ -1,4 +1,7 @@
-import type { PublicDocumentConfig, PublicExtractionResult } from "@docella/schemas/public";
+import type {
+  PublicDocumentConfig,
+  PublicExtractionResult,
+} from "@docella/schemas/public";
 import { forwardRef } from "react";
 
 import type { SchemaApi } from "../../api/schema-api";
