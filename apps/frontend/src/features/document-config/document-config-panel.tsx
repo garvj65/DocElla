@@ -86,8 +86,8 @@ export function DocumentConfigPanel({ children, schemaApi }: DocumentConfigPanel
         <CardHeader>
           <h2 className="text-xl font-semibold">Form to PDF</h2>
           <p className="text-sm text-[var(--color-muted)]">
-            Choose a document schema and trusted template, complete the generated form, then download
-            an editable or flattened PDF.
+            Choose a document schema and trusted template, complete the generated form, then
+            download an editable or flattened PDF.
           </p>
         </CardHeader>
         <CardContent className="grid gap-5 md:grid-cols-2">
