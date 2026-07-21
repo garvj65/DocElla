@@ -7,9 +7,7 @@ const indexPath = join(distPath, "index.html");
 const assetsPath = join(distPath, "assets");
 
 if (!existsSync(indexPath)) {
-  throw new Error(
-    "dist/index.html was not found. Run the frontend build first.",
-  );
+  throw new Error("dist/index.html was not found. Run the frontend build first.");
 }
 
 if (!existsSync(assetsPath)) {
@@ -21,9 +19,7 @@ const hasJavaScript = assets.some((asset) => asset.endsWith(".js"));
 const hasCss = assets.some((asset) => asset.endsWith(".css"));
 
 if (!hasJavaScript || !hasCss) {
-  throw new Error(
-    "Expected compiled JavaScript and CSS assets in dist/assets.",
-  );
+  throw new Error("Expected compiled JavaScript and CSS assets in dist/assets.");
 }
 
 const indexHtml = readFileSync(indexPath, "utf8");
@@ -49,9 +45,7 @@ for (const asset of assets) {
     assetText.includes("pdfFieldName") ||
     assetText.includes("assetPath")
   ) {
-    throw new Error(
-      "Internal template metadata appeared in compiled frontend assets.",
-    );
+    throw new Error("Internal template metadata appeared in compiled frontend assets.");
   }
 
   for (const sentinel of [
@@ -61,9 +55,7 @@ for (const asset of assets) {
     "raw Sentinel",
   ]) {
     if (assetText.includes(sentinel)) {
-      throw new Error(
-        "Sentinel test data appeared in compiled frontend assets.",
-      );
+      throw new Error("Sentinel test data appeared in compiled frontend assets.");
     }
   }
 }
@@ -93,9 +85,7 @@ if (
   extractReferences.length !== 1 ||
   !normalize(extractReferences[0]).endsWith(normalize("api/extraction-api.ts"))
 ) {
-  throw new Error(
-    "/api/extract must appear only in the intended extraction API module.",
-  );
+  throw new Error("/api/extract must appear only in the intended extraction API module.");
 }
 
 const generationReferences = endpointReferences("/api/generate-pdf");
@@ -103,9 +93,7 @@ if (
   generationReferences.length !== 1 ||
   !normalize(generationReferences[0]).endsWith(normalize("api/schema-api.ts"))
 ) {
-  throw new Error(
-    "/api/generate-pdf must appear only in the intended PDF generation API module.",
-  );
+  throw new Error("/api/generate-pdf must appear only in the intended PDF generation API module.");
 }
 
 console.log("Frontend production build smoke passed.");
