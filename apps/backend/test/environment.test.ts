@@ -216,18 +216,9 @@ describe("parseEnvironment", () => {
   });
 
   it("rejects invalid shutdown timeouts", () => {
-    expectInvalidField(
-      { ...validSource, SHUTDOWN_TIMEOUT_MS: "999" },
-      "SHUTDOWN_TIMEOUT_MS",
-    );
-    expectInvalidField(
-      { ...validSource, SHUTDOWN_TIMEOUT_MS: "60001" },
-      "SHUTDOWN_TIMEOUT_MS",
-    );
-    expectInvalidField(
-      { ...validSource, SHUTDOWN_TIMEOUT_MS: "soon" },
-      "SHUTDOWN_TIMEOUT_MS",
-    );
+    expectInvalidField({ ...validSource, SHUTDOWN_TIMEOUT_MS: "999" }, "SHUTDOWN_TIMEOUT_MS");
+    expectInvalidField({ ...validSource, SHUTDOWN_TIMEOUT_MS: "60001" }, "SHUTDOWN_TIMEOUT_MS");
+    expectInvalidField({ ...validSource, SHUTDOWN_TIMEOUT_MS: "soon" }, "SHUTDOWN_TIMEOUT_MS");
   });
 
   it("does not include the supplied Groq API key in validation errors", () => {
