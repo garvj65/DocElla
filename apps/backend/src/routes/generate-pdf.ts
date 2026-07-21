@@ -1,5 +1,5 @@
 import { buildSubmissionSchema, getDocumentDefinition } from "@docella/schemas";
-import { Router } from "express";
+import express, { Router } from "express";
 import type { Logger } from "pino";
 import { z } from "zod";
 
@@ -45,7 +45,8 @@ const safeValidationDetails = (
 
 const validationErrorOptions = (
   code:
-    typeof ERROR_CODES.INVALID_GENERATION_REQUEST | typeof ERROR_CODES.INVALID_GENERATION_VALUES,
+    | typeof ERROR_CODES.INVALID_GENERATION_REQUEST
+    | typeof ERROR_CODES.INVALID_GENERATION_VALUES,
   message: string,
   status: number,
   error: z.ZodError,
@@ -76,6 +77,7 @@ export const createGeneratePdfRouter = ({
       next();
     },
     createGenerationRateLimit(environment, rateLimit),
+    express.json({ limit: "1mb", strict: true, type: "application/json" }),
     async (request, response, next) => {
       const cancellation = bindRequestCancellation(request, response);
       try {
