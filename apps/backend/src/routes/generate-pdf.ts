@@ -1,5 +1,5 @@
 import { buildSubmissionSchema, getDocumentDefinition } from "@docella/schemas";
-import { Router } from "express";
+import express, { Router } from "express";
 import type { Logger } from "pino";
 import { z } from "zod";
 
@@ -76,6 +76,7 @@ export const createGeneratePdfRouter = ({
       next();
     },
     createGenerationRateLimit(environment, rateLimit),
+    express.json({ limit: "1mb", strict: true, type: "application/json" }),
     async (request, response, next) => {
       const cancellation = bindRequestCancellation(request, response);
       try {

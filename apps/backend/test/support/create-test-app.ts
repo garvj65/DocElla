@@ -21,6 +21,8 @@ export const testEnvironment: Environment = {
   logLevel: "info",
   nodeEnv: "test",
   port: 3001,
+  shutdownTimeoutMs: 10_000,
+  trustProxyHops: 0,
 };
 
 export const createSilentLogger = (): Logger => pino({ level: "silent" });

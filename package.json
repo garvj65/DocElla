@@ -13,6 +13,7 @@
     "lint": "npm run build -w @docella/schemas && eslint .",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
+    "verify:release": "npm run build && npm run verify:build -w @docella/frontend && npm run smoke:production -w @docella/backend",
     "clean": "node scripts/clean.mjs"
   },
   "engines": {

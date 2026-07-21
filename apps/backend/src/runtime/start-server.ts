@@ -51,15 +51,33 @@ export const startServer = ({
     }
 
     isShuttingDown = true;
-    logger.info({ event: "shutdown_started", signal }, "Shutting down server");
+    const timeoutMs = environment.shutdownTimeoutMs;
+    let forced = false;
+    const timer = setTimeout(() => {
+      forced = true;
+      setExitCode(1);
+      logger.error(
+        { event: "shutdown_forced", signal, timeoutMs },
+        "Forcing server shutdown after grace period",
+      );
+      server.closeAllConnections();
+    }, timeoutMs);
+    timer.unref();
+
+    logger.info({ event: "shutdown_started", signal, timeoutMs }, "Shutting down server");
+    server.closeIdleConnections();
     server.close((error) => {
+      clearTimeout(timer);
       if (error !== undefined) {
         logger.error({ err: error, event: "shutdown_failed" }, "Server shutdown failed");
         setExitCode(1);
         return;
       }
 
-      logger.info({ event: "shutdown_completed" }, "Server shutdown completed");
+      logger.info(
+        { event: "shutdown_completed", forced },
+        forced ? "Forced server shutdown completed" : "Server shutdown completed",
+      );
     });
   };
 

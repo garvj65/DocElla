@@ -2,6 +2,7 @@ const appModule = await import("../dist/app.js");
 const pdfModule = await import("../dist/extraction/pdf-text-extractor.js");
 const groqExtractorModule = await import("../dist/extraction/groq-structured-extractor.js");
 const extractionServiceModule = await import("../dist/extraction/extraction-service.js");
+const staticFrontendModule = await import("../dist/frontend/static-frontend.js");
 const groundingServiceModule = await import("../dist/grounding/grounding-service.js");
 const groundingNormalizationModule = await import("../dist/grounding/normalization.js");
 const textSimilarityModule = await import("../dist/grounding/text-similarity.js");
@@ -30,6 +31,12 @@ if (typeof groqExtractorModule.createGroqStructuredExtractor !== "function") {
 if (typeof extractionServiceModule.createDocumentExtractionService !== "function") {
   throw new TypeError(
     "Expected dist/extraction/extraction-service.js to export createDocumentExtractionService.",
+  );
+}
+
+if (typeof staticFrontendModule.createStaticFrontendRouter !== "function") {
+  throw new TypeError(
+    "Expected dist/frontend/static-frontend.js to export createStaticFrontendRouter.",
   );
 }
 

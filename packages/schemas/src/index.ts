@@ -1,4 +1,5 @@
 export const DOCELLA_PROJECT_NAME = "DocElla" as const;
+export const DOCELLA_VERSION = "1.0.0" as const;
 
 export type { DocumentDefinition, TemplateDefinition } from "./contracts/document-definition.js";
 export type {
