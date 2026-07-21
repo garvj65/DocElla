@@ -44,7 +44,8 @@ const safeValidationDetails = (
 };
 
 const validationErrorOptions = (
-  code: typeof ERROR_CODES.INVALID_GENERATION_REQUEST | typeof ERROR_CODES.INVALID_GENERATION_VALUES,
+  code:
+    typeof ERROR_CODES.INVALID_GENERATION_REQUEST | typeof ERROR_CODES.INVALID_GENERATION_VALUES,
   message: string,
   status: number,
   error: z.ZodError,
