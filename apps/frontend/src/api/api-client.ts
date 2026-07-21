@@ -78,6 +78,26 @@ export const buildUrl = (apiBaseUrl: string, path: string): string => {
 export const isJsonResponse = (response: Response): boolean =>
   response.headers.get("content-type")?.toLowerCase().includes("application/json") ?? false;
 
+const isPdfResponse = (response: Response): boolean =>
+  response.headers.get("content-type")?.toLowerCase().includes("application/pdf") ?? false;
+
+const hasUnsafeFilenameCharacter = (filename: string): boolean => {
+  for (const character of filename) {
+    const codePoint = character.codePointAt(0);
+    if (
+      character === "/" ||
+      character === "\\" ||
+      codePoint === undefined ||
+      codePoint < 32 ||
+      codePoint === 127
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 export const apiErrorOptions = (
   status: number,
   code: string,
@@ -144,3 +164,128 @@ export const parseJsonEnvelopeResponse = async (
 
 export const getJsonData = async (response: Response, serviceLabel: string): Promise<unknown> =>
   (await parseJsonEnvelopeResponse(response, serviceLabel)).data;
+
+const parseJsonErrorEnvelope = async (response: Response): Promise<FrontendApiError> => {
+  if (!isJsonResponse(response)) {
+    return new FrontendApiError({
+      code: "API_ERROR",
+      status: response.status,
+      message: "The PDF generation request failed.",
+    });
+  }
+
+  try {
+    const envelope = parseEnvelope(await response.json());
+    if (!envelope.success) {
+      const code = typeof envelope.error?.code === "string" ? envelope.error.code : "API_ERROR";
+      return new FrontendApiError(
+        apiErrorOptions(response.status, code, requestIdFromMeta(envelope.meta)),
+      );
+    }
+  } catch (error) {
+    if (error instanceof FrontendApiError) {
+      return error;
+    }
+  }
+
+  return new FrontendApiError({
+    code: "API_ERROR",
+    status: response.status,
+    message: "The PDF generation request failed.",
+  });
+};
+
+export const parseSafePdfFilename = (contentDisposition: string | null): string | undefined => {
+  if (contentDisposition === null) {
+    return undefined;
+  }
+
+  const filenameStarMatch = /filename\*=UTF-8''([^;]+)/iu.exec(contentDisposition);
+  const quotedMatch = /filename="([^"]+)"/iu.exec(contentDisposition);
+  const tokenMatch = /filename=([^;]+)/iu.exec(contentDisposition);
+  const rawFilename = filenameStarMatch?.[1] ?? quotedMatch?.[1] ?? tokenMatch?.[1];
+  if (rawFilename === undefined) {
+    return undefined;
+  }
+
+  let filename: string;
+  try {
+    filename = decodeURIComponent(rawFilename.trim());
+  } catch {
+    filename = rawFilename.trim();
+  }
+
+  if (
+    filename.length === 0 ||
+    filename.length > 120 ||
+    hasUnsafeFilenameCharacter(filename) ||
+    !/^[\w .()[\]-]+\.pdf$/iu.test(filename)
+  ) {
+    return undefined;
+  }
+
+  return filename;
+};
+
+export interface PdfResponse {
+  readonly bytes: Uint8Array;
+  readonly filename: string;
+}
+
+export const postPdfJson = async (
+  apiBaseUrl: string,
+  path: string,
+  body: unknown,
+  fallbackFilename: string,
+  signal?: AbortSignal,
+): Promise<PdfResponse> => {
+  const requestInit: RequestInit = {
+    body: JSON.stringify(body),
+    headers: {
+      Accept: "application/pdf",
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  };
+
+  if (signal !== undefined) {
+    requestInit.signal = signal;
+  }
+
+  const response = await fetch(buildUrl(apiBaseUrl, path), requestInit);
+
+  if (!response.ok) {
+    throw await parseJsonErrorEnvelope(response);
+  }
+
+  if (!isPdfResponse(response)) {
+    throw new FrontendApiError({
+      code: "INVALID_PDF_RESPONSE",
+      status: response.status,
+      message: "The PDF generation service returned an unexpected response.",
+    });
+  }
+
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length === 0) {
+    throw new FrontendApiError({
+      code: "EMPTY_PDF_RESPONSE",
+      status: response.status,
+      message: "The PDF generation service returned an empty PDF.",
+    });
+  }
+
+  const pdfHeader = [0x25, 0x50, 0x44, 0x46, 0x2d];
+  if (!pdfHeader.every((byte, index) => bytes[index] === byte)) {
+    throw new FrontendApiError({
+      code: "INVALID_PDF_RESPONSE",
+      status: response.status,
+      message: "The PDF generation service returned an invalid PDF.",
+    });
+  }
+
+  return {
+    bytes,
+    filename: parseSafePdfFilename(response.headers.get("content-disposition")) ?? fallbackFilename,
+  };
+};

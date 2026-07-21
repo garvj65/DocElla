@@ -3,12 +3,13 @@ import {
   publicDocumentSummarySchema,
   type PublicDocumentConfig,
   type PublicDocumentSummary,
+  type PublicSubmissionData,
 } from "@docella/schemas/public";
 import { z } from "zod";
 
 import type { FrontendEnvironment } from "../config/environment";
 import { FrontendApiError } from "./api-error";
-import { getJson } from "./api-client";
+import { getJson, postPdfJson } from "./api-client";
 
 const summaryListSchema = z.array(publicDocumentSummarySchema).readonly();
 
@@ -38,6 +39,29 @@ export const createSchemaApi = (environment: FrontendEnvironment) => ({
     return parsePublicData(
       publicDocumentConfigSchema,
       await getJson(environment.apiBaseUrl, `/api/schemas/${encodedSchemaType}`, signal),
+    );
+  },
+
+  async generatePdf(options: {
+    readonly config: PublicDocumentConfig;
+    readonly templateId: string;
+    readonly values: PublicSubmissionData;
+    readonly flatten?: boolean;
+    readonly signal?: AbortSignal;
+  }) {
+    const filename = `${options.config.id}-${options.templateId}.pdf`.replace(/[^\w.-]+/gu, "-");
+
+    return postPdfJson(
+      environment.apiBaseUrl,
+      "/api/generate-pdf",
+      {
+        flatten: options.flatten ?? true,
+        schemaType: options.config.id,
+        templateId: options.templateId,
+        values: options.values,
+      },
+      filename,
+      options.signal,
     );
   },
 });
