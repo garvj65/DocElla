@@ -5,7 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExtractionApi } from "../src/api/extraction-api";
 import type { SchemaApi } from "../src/api/schema-api";
 import { ExtractionWorkspace } from "../src/features/extraction/extraction-workspace";
-import { buildExtractionResult, everyFieldConfig, everyFieldSummary } from "./support/schemas";
+import {
+  buildExtractionResult,
+  everyFieldConfig,
+  everyFieldSummary,
+} from "./support/schemas";
 import { renderWithProviders } from "./support/render";
 
 const deferred = <T,>() => {
@@ -26,7 +30,9 @@ const validPdf = (name: string) =>
 
 describe("ExtractionWorkspace", () => {
   beforeEach(() => {
-    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(
+      () => undefined,
+    );
     vi.stubGlobal("URL", {
       createObjectURL: vi.fn(() => "blob:reviewed-pdf"),
       revokeObjectURL: vi.fn(),
@@ -40,21 +46,30 @@ describe("ExtractionWorkspace", () => {
 
   it("extracts only after explicit action and renders the editable review flow", async () => {
     const user = userEvent.setup();
-    const extract = vi.fn(() => Promise.resolve(buildExtractionResult(everyFieldConfig)));
+    const extract = vi.fn(() =>
+      Promise.resolve(buildExtractionResult(everyFieldConfig)),
+    );
     const extractionApi: ExtractionApi = { extract };
     const schemaApi = mockSchemaApi();
 
     renderWithProviders(
-      <ExtractionWorkspace extractionApi={extractionApi} schemaApi={schemaApi} />,
+      <ExtractionWorkspace
+        extractionApi={extractionApi}
+        schemaApi={schemaApi}
+      />,
     );
 
-    expect(await screen.findByRole("heading", { name: "PDF to Form" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "PDF to Form" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /extract/i })).toBeDisabled();
 
     const file = validPdf("Synthetic Resume.pdf");
     await user.upload(screen.getByLabelText(/PDF file/i), file);
     expect(extract).not.toHaveBeenCalled();
-    await waitFor(() => expect(screen.getByRole("button", { name: /extract/i })).toBeEnabled());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /extract/i })).toBeEnabled(),
+    );
 
     await user.click(screen.getByRole("button", { name: /extract/i }));
     await screen.findByRole("heading", { name: "Extraction review" });
@@ -63,33 +78,43 @@ describe("ExtractionWorkspace", () => {
       { readonly config: typeof everyFieldConfig; readonly file: File },
     ];
     expect(firstCall[0]).toMatchObject({ config: everyFieldConfig, file });
-    expect(screen.getAllByText(/Grounding confidence/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Grounding confidence/i).length).toBeGreaterThan(
+      0,
+    );
     expect(screen.getAllByText("Verified").length).toBeGreaterThan(0);
 
     await user.clear(screen.getByLabelText(/Full name/i));
-    await user.type(screen.getByLabelText(/Full name/i), "Sensitive Sentinel");
+    await user.type(screen.getByLabelText(/Full name/i), "Example Person");
     expect(screen.getByText("Edited")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /validate reviewed fields/i }));
+    await user.click(
+      screen.getByRole("button", { name: /validate reviewed fields/i }),
+    );
     await screen.findByText(/Reviewed form is valid/i);
 
     await user.selectOptions(screen.getByLabelText(/PDF output/i), "editable");
-    await user.click(screen.getByRole("button", { name: /generate reviewed pdf/i }));
+    await user.click(
+      screen.getByRole("button", { name: /generate reviewed pdf/i }),
+    );
     await waitFor(() => expect(schemaApi.generatePdf).toHaveBeenCalledTimes(1));
     expect(schemaApi.generatePdf).toHaveBeenCalledWith(
       expect.objectContaining({
         flatten: false,
         templateId: "synthetic-default",
         values: expect.objectContaining({
-          fullName: "Sensitive Sentinel",
+          fullName: "Example Person",
         }),
       }),
     );
     expect(extract).toHaveBeenCalledTimes(1);
-    expect(screen.getAllByText(/Grounding confidence/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Grounding confidence/i).length).toBeGreaterThan(
+      0,
+    );
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:reviewed-pdf");
     expect(screen.queryByText(/source text/i)).not.toBeInTheDocument();
     expect(
-      extract.mock.calls.some((call) => JSON.stringify(call).includes("/api/generate-pdf")),
+      extract.mock.calls.some((call) =>
+        JSON.stringify(call).includes("/api/generate-pdf"),
+      ),
     ).toBe(false);
   }, 10000);
 
@@ -98,7 +123,10 @@ describe("ExtractionWorkspace", () => {
     const extractionApi: ExtractionApi = { extract: vi.fn() };
     const schemaApi = mockSchemaApi();
     renderWithProviders(
-      <ExtractionWorkspace extractionApi={extractionApi} schemaApi={schemaApi} />,
+      <ExtractionWorkspace
+        extractionApi={extractionApi}
+        schemaApi={schemaApi}
+      />,
     );
 
     await screen.findByRole("heading", { name: "PDF to Form" });
@@ -107,7 +135,9 @@ describe("ExtractionWorkspace", () => {
       new File(["not a pdf"], "not-pdf.pdf", { type: "application/pdf" }),
     );
 
-    expect(await screen.findByText(/could not be read as a valid PDF/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/could not be read as a valid PDF/i),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /extract/i })).toBeDisabled();
     expect(extractionApi.extract).not.toHaveBeenCalled();
   });
@@ -157,11 +187,17 @@ describe("ExtractionWorkspace", () => {
       message: "The selected file could not be read as a valid PDF.",
       valid: false,
     });
-    expect(await screen.findByText(/could not be read as a valid PDF/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/could not be read as a valid PDF/i),
+    ).toBeInTheDocument();
 
     validations[0]?.resolve({ valid: true });
-    await waitFor(() => expect(screen.getByText(/file-b\.pdf/i)).toBeInTheDocument());
-    expect(screen.getByText(/could not be read as a valid PDF/i)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText(/file-b\.pdf/i)).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByText(/could not be read as a valid PDF/i),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /extract/i })).toBeDisabled();
     expect(extractionApi.extract).not.toHaveBeenCalled();
   });
@@ -169,30 +205,48 @@ describe("ExtractionWorkspace", () => {
   it("ignores successful results from a cancelled extraction and keeps the file ready", async () => {
     const user = userEvent.setup();
     const extraction =
-      deferred<ReturnType<ExtractionApi["extract"]> extends Promise<infer T> ? T : never>();
+      deferred<
+        ReturnType<ExtractionApi["extract"]> extends Promise<infer T>
+          ? T
+          : never
+      >();
     const extract = vi.fn(() => extraction.promise);
     const extractionApi: ExtractionApi = { extract };
     const schemaApi = mockSchemaApi();
 
     renderWithProviders(
-      <ExtractionWorkspace extractionApi={extractionApi} schemaApi={schemaApi} />,
+      <ExtractionWorkspace
+        extractionApi={extractionApi}
+        schemaApi={schemaApi}
+      />,
     );
 
     await screen.findByRole("heading", { name: "PDF to Form" });
-    await user.upload(screen.getByLabelText(/PDF file/i), validPdf("cancel-me.pdf"));
-    await waitFor(() => expect(screen.getByRole("button", { name: /extract/i })).toBeEnabled());
+    await user.upload(
+      screen.getByLabelText(/PDF file/i),
+      validPdf("cancel-me.pdf"),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /extract/i })).toBeEnabled(),
+    );
     await user.click(screen.getByRole("button", { name: /extract/i }));
-    expect(await screen.findByRole("button", { name: /cancel/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: /cancel/i }),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /cancel/i }));
     extraction.resolve(buildExtractionResult(everyFieldConfig));
 
     await waitFor(() =>
-      expect(screen.queryByRole("heading", { name: "Extraction review" })).not.toBeInTheDocument(),
+      expect(
+        screen.queryByRole("heading", { name: "Extraction review" }),
+      ).not.toBeInTheDocument(),
     );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByText(/cancel-me\.pdf/i)).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole("button", { name: /extract/i })).toBeEnabled());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /extract/i })).toBeEnabled(),
+    );
   });
 
   it("allows selecting the same file again after Clear and Start Over", async () => {
