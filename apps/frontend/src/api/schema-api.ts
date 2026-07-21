@@ -27,18 +27,27 @@ const parsePublicData = <T>(parser: z.ZodType<T>, data: unknown): T => {
 };
 
 export const createSchemaApi = (environment: FrontendEnvironment) => ({
-  async listDocumentSummaries(signal?: AbortSignal): Promise<readonly PublicDocumentSummary[]> {
+  async listDocumentSummaries(
+    signal?: AbortSignal,
+  ): Promise<readonly PublicDocumentSummary[]> {
     return parsePublicData(
       summaryListSchema,
       await getJson(environment.apiBaseUrl, "/api/schemas", signal),
     );
   },
 
-  async getDocumentConfig(schemaType: string, signal?: AbortSignal): Promise<PublicDocumentConfig> {
+  async getDocumentConfig(
+    schemaType: string,
+    signal?: AbortSignal,
+  ): Promise<PublicDocumentConfig> {
     const encodedSchemaType = encodeURIComponent(schemaType);
     return parsePublicData(
       publicDocumentConfigSchema,
-      await getJson(environment.apiBaseUrl, `/api/schemas/${encodedSchemaType}`, signal),
+      await getJson(
+        environment.apiBaseUrl,
+        `/api/schemas/${encodedSchemaType}`,
+        signal,
+      ),
     );
   },
 
@@ -49,7 +58,10 @@ export const createSchemaApi = (environment: FrontendEnvironment) => ({
     readonly flatten?: boolean;
     readonly signal?: AbortSignal;
   }) {
-    const filename = `${options.config.id}-${options.templateId}.pdf`.replace(/[^\w.-]+/gu, "-");
+    const filename = `${options.config.id}-${options.templateId}.pdf`.replace(
+      /[^\w.-]+/gu,
+      "-",
+    );
 
     return postPdfJson(
       environment.apiBaseUrl,
