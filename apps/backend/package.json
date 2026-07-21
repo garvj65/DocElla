@@ -14,7 +14,8 @@
     "verify:dist": "node scripts/verify-dist.mjs",
     "verify:templates": "node scripts/verify-templates.mjs",
     "smoke:mocked": "node scripts/compiled-mocked-extraction-smoke.mjs",
-    "smoke:pdf-generation": "node scripts/compiled-pdf-generation-smoke.mjs"
+    "smoke:pdf-generation": "node scripts/compiled-pdf-generation-smoke.mjs",
+    "smoke:production": "node scripts/compiled-production-smoke.mjs"
   },
   "dependencies": {
     "@docella/schemas": "0.0.0",
