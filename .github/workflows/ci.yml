@@ -36,8 +36,16 @@ jobs:
       - name: Check formatting
         run: npm run format:check
 
-      - name: Lint
-        run: npm run lint
+      - name: Capture lint diagnostics
+        run: npm run lint > lint-output.txt 2>&1
+
+      - name: Upload lint diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-output
+          path: lint-output.txt
+          retention-days: 1
 
       - name: Type-check
         run: npm run typecheck
