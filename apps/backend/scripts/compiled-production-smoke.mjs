@@ -4,12 +4,10 @@ import pino from "pino";
 import request from "supertest";
 
 const { createApp } = await import("../dist/app.js");
-const { createPdfGenerationService } = await import(
-  "../dist/pdf-generation/pdf-generation-service.js"
-);
-const { createFilePdfTemplateRepository } = await import(
-  "../dist/pdf-generation/pdf-template-repository.js"
-);
+const { createPdfGenerationService } =
+  await import("../dist/pdf-generation/pdf-generation-service.js");
+const { createFilePdfTemplateRepository } =
+  await import("../dist/pdf-generation/pdf-template-repository.js");
 
 const environment = {
   extractRateLimitMax: 1000,
