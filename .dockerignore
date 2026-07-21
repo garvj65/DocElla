@@ -19,7 +19,6 @@ uploads
 tmp
 temp
 *.log
-*.pdf
 .DS_Store
 Thumbs.db
 .idea
