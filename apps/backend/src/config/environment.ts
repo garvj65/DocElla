@@ -22,6 +22,8 @@ export interface Environment {
   readonly generateRateLimitWindowMs: number;
   readonly generateRateLimitMax: number;
   readonly groqMaxInputCharacters: number;
+  readonly shutdownTimeoutMs: number;
+  readonly trustProxyHops: number;
 }
 
 export interface EnvironmentIssue {
@@ -139,6 +141,8 @@ const environmentSchema = z.object({
   LOG_LEVEL: z.enum(logLevels).default("info"),
   NODE_ENV: z.enum(nodeEnvironments).default("development"),
   PORT: portSchema,
+  SHUTDOWN_TIMEOUT_MS: integerFromString(1_000, 60_000, 10_000),
+  TRUST_PROXY_HOPS: integerFromString(0, 10, 0),
 });
 
 export const parseEnvironment = (source: NodeJS.ProcessEnv): Environment => {
@@ -167,5 +171,7 @@ export const parseEnvironment = (source: NodeJS.ProcessEnv): Environment => {
     logLevel: result.data.LOG_LEVEL,
     nodeEnv: result.data.NODE_ENV,
     port: result.data.PORT,
+    shutdownTimeoutMs: result.data.SHUTDOWN_TIMEOUT_MS,
+    trustProxyHops: result.data.TRUST_PROXY_HOPS,
   };
 };
