@@ -8,9 +8,7 @@ import { everyFieldConfig } from "./support/schemas";
 
 describe("DynamicDocumentForm", () => {
   beforeEach(() => {
-    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(
-      () => undefined,
-    );
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
     vi.stubGlobal("URL", {
       createObjectURL: vi.fn(() => "blob:pdf"),
       revokeObjectURL: vi.fn(),
@@ -23,26 +21,15 @@ describe("DynamicDocumentForm", () => {
   });
 
   it("renders every public field kind and validates locally without leaking values", async () => {
-    const consoleSpy = vi
-      .spyOn(console, "log")
-      .mockImplementation(() => undefined);
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     const user = userEvent.setup();
 
     renderForm();
 
-    expect(screen.getByLabelText(/Full name/)).toHaveAttribute(
-      "placeholder",
-      "Alex Morgan",
-    );
+    expect(screen.getByLabelText(/Full name/)).toHaveAttribute("placeholder", "Alex Morgan");
     expect(screen.getByLabelText("Notes")).toBeInstanceOf(HTMLTextAreaElement);
-    expect(screen.getByLabelText(/Email/)).toHaveAttribute(
-      "autocomplete",
-      "email",
-    );
-    expect(screen.getByLabelText("Phone")).toHaveAttribute(
-      "autocomplete",
-      "tel",
-    );
+    expect(screen.getByLabelText(/Email/)).toHaveAttribute("autocomplete", "email");
+    expect(screen.getByLabelText("Phone")).toHaveAttribute("autocomplete", "tel");
     expect(screen.getByLabelText("Start date")).toHaveAttribute("type", "date");
     expect(screen.getByLabelText("Years")).toHaveAttribute("type", "number");
     expect(screen.getByLabelText("Amount")).toHaveAttribute("type", "number");
@@ -61,13 +48,9 @@ describe("DynamicDocumentForm", () => {
     await user.click(screen.getByRole("option", { name: "Open" }));
     await user.click(screen.getByRole("button", { name: /validate fields/i }));
 
-    await waitFor(() =>
-      expect(screen.getByText(/passed local validation/i)).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText(/passed local validation/i)).toBeInTheDocument());
     expect(screen.queryByText("Example Person")).not.toBeInTheDocument();
-    expect(consoleSpy).not.toHaveBeenCalledWith(
-      expect.stringContaining("Example Person"),
-    );
+    expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining("Example Person"));
     expect(window.localStorage.length).toBe(0);
     expect(window.sessionStorage.length).toBe(0);
 
@@ -112,9 +95,7 @@ describe("DynamicDocumentForm", () => {
     renderForm(schemaApi);
     await user.click(screen.getByRole("button", { name: /generate pdf/i }));
 
-    await waitFor(() =>
-      expect(screen.getByText(/need attention/i)).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText(/need attention/i)).toBeInTheDocument());
     expect(schemaApi.generatePdf).not.toHaveBeenCalled();
   });
 
@@ -130,9 +111,7 @@ describe("DynamicDocumentForm", () => {
     const call = schemaApi.generatePdf.mock.calls[0]?.[0];
     expect(call?.signal).toBeDefined();
     expect(call?.signal?.aborted).toBe(true);
-    expect(
-      screen.queryByRole("button", { name: /cancel/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /cancel/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /generate pdf/i })).toBeEnabled();
     expect(URL.createObjectURL).not.toHaveBeenCalled();
   });
@@ -140,11 +119,7 @@ describe("DynamicDocumentForm", () => {
   it("does not download a late result after the selected template changes", async () => {
     const user = userEvent.setup();
     let resolvePdf:
-      | ((value: {
-          readonly bytes: Uint8Array;
-          readonly filename: string;
-        }) => void)
-      | undefined;
+      ((value: { readonly bytes: Uint8Array; readonly filename: string }) => void) | undefined;
     const pendingPdf = new Promise<{
       readonly bytes: Uint8Array;
       readonly filename: string;
@@ -213,9 +188,7 @@ function mockSchemaApi(
   };
 }
 
-async function fillValidRequiredFields(
-  user: ReturnType<typeof userEvent.setup>,
-) {
+async function fillValidRequiredFields(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(/Full name/), "Example Person");
   await user.type(screen.getByLabelText(/Email/), "alex@example.com");
   await user.click(screen.getByRole("combobox", { name: /status/i }));
