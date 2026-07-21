@@ -51,7 +51,7 @@ export const startServer = ({
     }
 
     isShuttingDown = true;
-    const timeoutMs = environment.shutdownTimeoutMs ?? 10_000;
+    const timeoutMs = environment.shutdownTimeoutMs;
     let forced = false;
     const timer = setTimeout(() => {
       forced = true;
@@ -60,12 +60,12 @@ export const startServer = ({
         { event: "shutdown_forced", signal, timeoutMs },
         "Forcing server shutdown after grace period",
       );
-      server.closeAllConnections?.();
+      server.closeAllConnections();
     }, timeoutMs);
     timer.unref();
 
     logger.info({ event: "shutdown_started", signal, timeoutMs }, "Shutting down server");
-    server.closeIdleConnections?.();
+    server.closeIdleConnections();
     server.close((error) => {
       clearTimeout(timer);
       if (error !== undefined) {
