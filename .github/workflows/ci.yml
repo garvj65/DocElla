@@ -8,6 +8,13 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   checks:
     name: Repository Gates
@@ -38,5 +45,47 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Build
-        run: npm run build
+      - name: Build and verify release artifacts
+        run: npm run verify:release
+
+  container:
+    name: Production Container
+    needs: checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build production image
+        run: docker build --tag docella:ci .
+
+      - name: Start production image
+        run: |
+          docker run --detach --name docella-ci --publish 3001:3001 \
+            --env NODE_ENV=production \
+            --env PORT=3001 \
+            --env FRONTEND_ORIGIN=http://localhost:3001 \
+            --env GROQ_API_KEY=ci-not-used \
+            --env TRUST_PROXY_HOPS=0 \
+            --env SHUTDOWN_TIMEOUT_MS=5000 \
+            docella:ci
+
+      - name: Verify container health and frontend
+        run: |
+          for attempt in {1..30}; do
+            if node -e "fetch('http://127.0.0.1:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; then
+              break
+            fi
+            if [ "$attempt" = "30" ]; then
+              docker logs docella-ci
+              exit 1
+            fi
+            sleep 1
+          done
+          node -e "Promise.all([fetch('http://127.0.0.1:3001/'), fetch('http://127.0.0.1:3001/api/schemas')]).then(async ([home, schemas]) => { if (!home.ok || !schemas.ok || !(await home.text()).includes('DocElla')) process.exit(1); }).catch(() => process.exit(1))"
+          test "$(docker exec docella-ci id -u)" != "0"
+
+      - name: Stop production image
+        if: always()
+        run: docker rm --force docella-ci || true
