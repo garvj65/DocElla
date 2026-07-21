@@ -8,27 +8,19 @@ import { Alert } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader } from "../../components/ui/card";
 import { Skeleton } from "../../components/ui/skeleton";
-import {
-  useDocumentConfig,
-  useDocumentSummaries,
-} from "../document-config/queries";
+import { useDocumentConfig, useDocumentSummaries } from "../document-config/queries";
 import { SchemaSelector } from "../document-config/schema-selector";
 import { ExtractionReviewWorkspace } from "../extraction-review/extraction-review-workspace";
 import { ExtractionError } from "./extraction-error";
 import { ExtractionProgress } from "./extraction-progress";
 import { PdfUploadControl } from "./pdf-upload-control";
-import {
-  validatePdfFile,
-  type PdfFileValidationResult,
-} from "./pdf-file-validation";
+import { validatePdfFile, type PdfFileValidationResult } from "./pdf-file-validation";
 import { useExtractionMutation } from "./use-extraction-mutation";
 
 interface ExtractionWorkspaceProps {
   readonly extractionApi: ExtractionApi;
   readonly schemaApi: SchemaApi;
-  readonly validateFile?: (
-    files: readonly File[],
-  ) => Promise<PdfFileValidationResult>;
+  readonly validateFile?: (files: readonly File[]) => Promise<PdfFileValidationResult>;
 }
 
 export function ExtractionWorkspace({
@@ -40,8 +32,7 @@ export function ExtractionWorkspace({
   const [selectedSchemaId, setSelectedSchemaId] = useState("");
   const configQuery = useDocumentConfig(schemaApi, selectedSchemaId);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [fileValidation, setFileValidation] =
-    useState<PdfFileValidationResult | null>(null);
+  const [fileValidation, setFileValidation] = useState<PdfFileValidationResult | null>(null);
   const [result, setResult] = useState<{
     readonly id: string;
     readonly value: PublicExtractionResult;
@@ -58,9 +49,7 @@ export function ExtractionWorkspace({
       return;
     }
 
-    if (
-      !summariesQuery.data.some((summary) => summary.id === selectedSchemaId)
-    ) {
+    if (!summariesQuery.data.some((summary) => summary.id === selectedSchemaId)) {
       setSelectedSchemaId(summariesQuery.data[0]?.id ?? "");
     }
   }, [selectedSchemaId, summariesQuery.data]);
@@ -172,8 +161,7 @@ export function ExtractionWorkspace({
   const selectedSchemaLabel = useMemo(
     () =>
       configQuery.data?.label ??
-      summariesQuery.data?.find((summary) => summary.id === selectedSchemaId)
-        ?.label ??
+      summariesQuery.data?.find((summary) => summary.id === selectedSchemaId)?.label ??
       "selected schema",
     [configQuery.data?.label, selectedSchemaId, summariesQuery.data],
   );
@@ -187,11 +175,7 @@ export function ExtractionWorkspace({
       <Alert tone="error">
         <div className="space-y-3">
           <p>Document schemas could not be loaded.</p>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => void summariesQuery.refetch()}
-          >
+          <Button type="button" variant="secondary" onClick={() => void summariesQuery.refetch()}>
             <RefreshCw aria-hidden="true" className="h-4 w-4" />
             Retry
           </Button>
@@ -209,15 +193,11 @@ export function ExtractionWorkspace({
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <FileSearch
-              aria-hidden="true"
-              className="h-5 w-5 text-[var(--color-accent)]"
-            />
+            <FileSearch aria-hidden="true" className="h-5 w-5 text-[var(--color-accent)]" />
             <div>
               <h2 className="text-xl font-semibold">PDF to Form</h2>
               <p className="text-sm text-[var(--color-muted)]">
-                Upload a text-based PDF, review grounded fields, and validate
-                edits locally.
+                Upload a text-based PDF, review grounded fields, and validate edits locally.
               </p>
             </div>
           </div>
@@ -236,9 +216,7 @@ export function ExtractionWorkspace({
             </div>
           ) : null}
           {configQuery.isError ? (
-            <Alert tone="error">
-              The selected schema details could not be loaded.
-            </Alert>
+            <Alert tone="error">The selected schema details could not be loaded.</Alert>
           ) : null}
           <PdfUploadControl
             disabled={mutation.isPending}
@@ -267,11 +245,7 @@ export function ExtractionWorkspace({
             />
           ) : null}
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Button
-              disabled={!canExtract}
-              type="button"
-              onClick={() => void submitExtraction()}
-            >
+            <Button disabled={!canExtract} type="button" onClick={() => void submitExtraction()}>
               <ShieldCheck aria-hidden="true" className="h-4 w-4" />
               Extract
             </Button>
