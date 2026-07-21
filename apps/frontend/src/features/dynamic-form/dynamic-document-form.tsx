@@ -7,14 +7,7 @@ import {
   type PublicSubmissionData,
 } from "@docella/schemas/public";
 import { Download, RefreshCcw, ShieldCheck, X } from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { type Resolver, useForm } from "react-hook-form";
 
 import { FrontendApiError } from "../../api/api-error";
@@ -78,10 +71,7 @@ function DynamicDocumentFormInner({
   selectedTemplateId,
   selectedTemplateLabel,
 }: DynamicDocumentFormProps) {
-  const defaultValues = useMemo(
-    () => buildPublicDefaultValues(config),
-    [config],
-  );
+  const defaultValues = useMemo(() => buildPublicDefaultValues(config), [config]);
 
   return (
     <SchemaDrivenForm
@@ -122,15 +112,12 @@ export function SchemaDrivenForm({
   title,
   validationSuccessMessage,
 }: SchemaDrivenFormProps & {
-  readonly children?:
-    ReactNode | ((validationState: ValidationState) => ReactNode);
+  readonly children?: ReactNode | ((validationState: ValidationState) => ReactNode);
 }) {
-  const [validationState, setValidationState] =
-    useState<ValidationState>("idle");
+  const [validationState, setValidationState] = useState<ValidationState>("idle");
   const [flatten, setFlatten] = useState(
-    config.templates.find(
-      (template) => template.id === generation?.selectedTemplateId,
-    )?.flattenByDefault ?? true,
+    config.templates.find((template) => template.id === generation?.selectedTemplateId)
+      ?.flattenByDefault ?? true,
   );
   const [generationState, setGenerationState] = useState<
     "idle" | "generating" | "success" | "error"
@@ -226,20 +213,14 @@ export function SchemaDrivenForm({
           values,
         });
 
-        if (
-          activeRequestRef.current !== generationId ||
-          abortController.signal.aborted
-        ) {
+        if (activeRequestRef.current !== generationId || abortController.signal.aborted) {
           return;
         }
 
         downloadPdf(pdf.bytes, pdf.filename);
         setGenerationState("success");
       } catch (error) {
-        if (
-          abortController.signal.aborted ||
-          activeRequestRef.current !== generationId
-        ) {
+        if (abortController.signal.aborted || activeRequestRef.current !== generationId) {
           return;
         }
 
@@ -267,15 +248,10 @@ export function SchemaDrivenForm({
       <Card>
         <CardHeader>
           <h2 className="text-xl font-semibold">{title ?? config.label}</h2>
-          <p className="text-sm text-[var(--color-muted)]">
-            {config.description}
-          </p>
+          <p className="text-sm text-[var(--color-muted)]">{config.description}</p>
         </CardHeader>
         <CardContent>
-          <form
-            className="space-y-6"
-            onSubmit={(event) => void validateFields(event)}
-          >
+          <form className="space-y-6" onSubmit={(event) => void validateFields(event)}>
             <FormReadiness
               state={validationState}
               {...(validationSuccessMessage === undefined
@@ -288,10 +264,7 @@ export function SchemaDrivenForm({
                   control={control}
                   error={errors[field.key]}
                   field={field}
-                  fieldAccessory={fieldAccessory?.(
-                    field.key,
-                    Boolean(dirtyFields[field.key]),
-                  )}
+                  fieldAccessory={fieldAccessory?.(field.key, Boolean(dirtyFields[field.key]))}
                   key={field.key}
                   register={register}
                 />
@@ -350,16 +323,10 @@ export function SchemaDrivenForm({
                       }}
                     >
                       <Download aria-hidden="true" className="h-4 w-4" />
-                      {generationState === "generating"
-                        ? "Generating..."
-                        : generation.buttonLabel}
+                      {generationState === "generating" ? "Generating..." : generation.buttonLabel}
                     </Button>
                     {generationState === "generating" ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={cancelGenerationAndReset}
-                      >
+                      <Button type="button" variant="secondary" onClick={cancelGenerationAndReset}>
                         <X aria-hidden="true" className="h-4 w-4" />
                         Cancel
                       </Button>
@@ -368,9 +335,7 @@ export function SchemaDrivenForm({
                 </div>
                 <div aria-live="polite" role="status">
                   {generationState === "generating" ? "Generating PDF." : null}
-                  {generationState === "success"
-                    ? "PDF download started."
-                    : null}
+                  {generationState === "success" ? "PDF download started." : null}
                 </div>
                 {generationState === "error" ? (
                   <div
@@ -381,9 +346,7 @@ export function SchemaDrivenForm({
                     tabIndex={-1}
                   >
                     <p>{generationError}</p>
-                    {requestId !== undefined ? (
-                      <p>Request ID: {requestId}</p>
-                    ) : null}
+                    {requestId !== undefined ? <p>Request ID: {requestId}</p> : null}
                   </div>
                 ) : null}
               </>
