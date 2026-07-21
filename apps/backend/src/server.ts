@@ -1,4 +1,6 @@
-import "dotenv/config";
+import { fileURLToPath } from "node:url";
+
+import { config as loadEnvironmentFile } from "dotenv";
 
 import { createApp } from "./app.js";
 import { EnvironmentValidationError, parseEnvironment } from "./config/environment.js";
@@ -11,6 +13,11 @@ import { createGroundingService } from "./grounding/grounding-service.js";
 import { createPdfGenerationService } from "./pdf-generation/pdf-generation-service.js";
 import { createFilePdfTemplateRepository } from "./pdf-generation/pdf-template-repository.js";
 import { startServer } from "./runtime/start-server.js";
+
+loadEnvironmentFile({
+  path: fileURLToPath(new URL("../../../.env", import.meta.url)),
+  quiet: true,
+});
 
 const start = (): void => {
   const environment = parseEnvironment(process.env);

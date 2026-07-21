@@ -11,7 +11,8 @@ export function FormReadiness({
   if (state === "idle") {
     return (
       <Alert>
-        Fields are ready for local validation. No values are sent to the backend in this task.
+        Complete the required fields, then generate an editable or flattened PDF from the selected
+        trusted template.
       </Alert>
     );
   }
