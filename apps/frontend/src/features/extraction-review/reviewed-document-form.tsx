@@ -1,4 +1,7 @@
-import { type PublicDocumentConfig, type PublicExtractionData } from "@docella/schemas/public";
+import {
+  type PublicDocumentConfig,
+  type PublicExtractionData,
+} from "@docella/schemas/public";
 import { useMemo, useState } from "react";
 
 import type { SchemaApi } from "../../api/schema-api";
@@ -22,9 +25,13 @@ export function ReviewedDocumentForm({
   readonly onStartOver: () => void;
 }) {
   const initialValues = buildReviewedFormValues(config, extraction);
-  const [selectedTemplateId, setSelectedTemplateId] = useState(config.templates[0]?.id ?? "");
+  const [selectedTemplateId, setSelectedTemplateId] = useState(
+    config.templates[0]?.id ?? "",
+  );
   const selectedTemplateLabel = useMemo(
-    () => config.templates.find((template) => template.id === selectedTemplateId)?.label ?? "",
+    () =>
+      config.templates.find((template) => template.id === selectedTemplateId)
+        ?.label ?? "",
     [config.templates, selectedTemplateId],
   );
 
@@ -71,7 +78,9 @@ export function ReviewedDocumentForm({
         />
         <dl className="space-y-2 text-sm">
           <div>
-            <dt className="font-medium text-[var(--color-muted)]">Selected template</dt>
+            <dt className="font-medium text-[var(--color-muted)]">
+              Selected template
+            </dt>
             <dd>{selectedTemplateLabel}</dd>
           </div>
         </dl>
