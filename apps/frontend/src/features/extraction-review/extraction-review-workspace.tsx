@@ -15,7 +15,10 @@ export const ExtractionReviewWorkspace = forwardRef<
     readonly result: PublicExtractionResult;
     readonly onStartOver: () => void;
   }
->(function ExtractionReviewWorkspace({ config, extractionId, onStartOver, result, schemaApi }, ref) {
+>(function ExtractionReviewWorkspace(
+  { config, extractionId, onStartOver, result, schemaApi },
+  ref,
+) {
   return (
     <section className="space-y-6" ref={ref} tabIndex={-1}>
       <ExtractionSummary config={config} meta={result.meta} />
