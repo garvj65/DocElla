@@ -142,6 +142,13 @@ export function SchemaDrivenForm({
     abortControllerRef.current = undefined;
   }, []);
 
+  const cancelGenerationAndReset = useCallback(() => {
+    cancelGeneration();
+    setGenerationState("idle");
+    setGenerationError("");
+    setRequestId(undefined);
+  }, [cancelGeneration]);
+
   useEffect(() => {
     const selectedTemplate = config.templates.find(
       (template) => template.id === generation?.selectedTemplateId,
@@ -315,7 +322,7 @@ export function SchemaDrivenForm({
                       {generationState === "generating" ? "Generating..." : generation.buttonLabel}
                     </Button>
                     {generationState === "generating" ? (
-                      <Button type="button" variant="secondary" onClick={cancelGeneration}>
+                      <Button type="button" variant="secondary" onClick={cancelGenerationAndReset}>
                         <X aria-hidden="true" className="h-4 w-4" />
                         Cancel
                       </Button>
