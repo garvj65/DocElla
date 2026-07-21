@@ -76,16 +76,10 @@ export const buildUrl = (apiBaseUrl: string, path: string): string => {
 };
 
 export const isJsonResponse = (response: Response): boolean =>
-  response.headers
-    .get("content-type")
-    ?.toLowerCase()
-    .includes("application/json") ?? false;
+  response.headers.get("content-type")?.toLowerCase().includes("application/json") ?? false;
 
 const isPdfResponse = (response: Response): boolean =>
-  response.headers
-    .get("content-type")
-    ?.toLowerCase()
-    .includes("application/pdf") ?? false;
+  response.headers.get("content-type")?.toLowerCase().includes("application/pdf") ?? false;
 
 const hasUnsafeFilenameCharacter = (filename: string): boolean => {
   for (const character of filename) {
@@ -153,10 +147,7 @@ export const parseJsonEnvelopeResponse = async (
   const envelope = parseEnvelope(await response.json(), serviceLabel);
 
   if (!envelope.success) {
-    const code =
-      typeof envelope.error?.code === "string"
-        ? envelope.error.code
-        : "API_ERROR";
+    const code = typeof envelope.error?.code === "string" ? envelope.error.code : "API_ERROR";
     throw new FrontendApiError(
       apiErrorOptions(response.status, code, requestIdFromMeta(envelope.meta)),
     );
@@ -164,26 +155,17 @@ export const parseJsonEnvelopeResponse = async (
 
   if (!response.ok) {
     throw new FrontendApiError(
-      apiErrorOptions(
-        response.status,
-        "API_ERROR",
-        requestIdFromMeta(envelope.meta),
-      ),
+      apiErrorOptions(response.status, "API_ERROR", requestIdFromMeta(envelope.meta)),
     );
   }
 
   return envelope;
 };
 
-export const getJsonData = async (
-  response: Response,
-  serviceLabel: string,
-): Promise<unknown> =>
+export const getJsonData = async (response: Response, serviceLabel: string): Promise<unknown> =>
   (await parseJsonEnvelopeResponse(response, serviceLabel)).data;
 
-const parseJsonErrorEnvelope = async (
-  response: Response,
-): Promise<FrontendApiError> => {
+const parseJsonErrorEnvelope = async (response: Response): Promise<FrontendApiError> => {
   if (!isJsonResponse(response)) {
     return new FrontendApiError({
       code: "API_ERROR",
@@ -195,16 +177,9 @@ const parseJsonErrorEnvelope = async (
   try {
     const envelope = parseEnvelope(await response.json());
     if (!envelope.success) {
-      const code =
-        typeof envelope.error?.code === "string"
-          ? envelope.error.code
-          : "API_ERROR";
+      const code = typeof envelope.error?.code === "string" ? envelope.error.code : "API_ERROR";
       return new FrontendApiError(
-        apiErrorOptions(
-          response.status,
-          code,
-          requestIdFromMeta(envelope.meta),
-        ),
+        apiErrorOptions(response.status, code, requestIdFromMeta(envelope.meta)),
       );
     }
   } catch (error) {
@@ -220,20 +195,15 @@ const parseJsonErrorEnvelope = async (
   });
 };
 
-export const parseSafePdfFilename = (
-  contentDisposition: string | null,
-): string | undefined => {
+export const parseSafePdfFilename = (contentDisposition: string | null): string | undefined => {
   if (contentDisposition === null) {
     return undefined;
   }
 
-  const filenameStarMatch = /filename\*=UTF-8''([^;]+)/iu.exec(
-    contentDisposition,
-  );
+  const filenameStarMatch = /filename\*=UTF-8''([^;]+)/iu.exec(contentDisposition);
   const quotedMatch = /filename="([^"]+)"/iu.exec(contentDisposition);
   const tokenMatch = /filename=([^;]+)/iu.exec(contentDisposition);
-  const rawFilename =
-    filenameStarMatch?.[1] ?? quotedMatch?.[1] ?? tokenMatch?.[1];
+  const rawFilename = filenameStarMatch?.[1] ?? quotedMatch?.[1] ?? tokenMatch?.[1];
   if (rawFilename === undefined) {
     return undefined;
   }
@@ -316,8 +286,6 @@ export const postPdfJson = async (
 
   return {
     bytes,
-    filename:
-      parseSafePdfFilename(response.headers.get("content-disposition")) ??
-      fallbackFilename,
+    filename: parseSafePdfFilename(response.headers.get("content-disposition")) ?? fallbackFilename,
   };
 };
