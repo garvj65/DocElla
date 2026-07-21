@@ -322,7 +322,11 @@ export function SchemaDrivenForm({
                       {generationState === "generating" ? "Generating..." : generation.buttonLabel}
                     </Button>
                     {generationState === "generating" ? (
-                      <Button type="button" variant="secondary" onClick={cancelGenerationAndReset}>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={cancelGenerationAndReset}
+                      >
                         <X aria-hidden="true" className="h-4 w-4" />
                         Cancel
                       </Button>
