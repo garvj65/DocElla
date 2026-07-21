@@ -1,6 +1,11 @@
 import type { ExtractionApi } from "../../api/extraction-api";
 import type { SchemaApi } from "../../api/schema-api";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../../components/ui/tabs";
 import { DocumentConfigPanel } from "../document-config/document-config-panel";
 import { DynamicDocumentForm } from "../dynamic-form/dynamic-document-form";
 import { ExtractionWorkspace } from "../extraction/extraction-workspace";
@@ -21,7 +26,10 @@ export function WorkflowTabs({
         </TabsList>
       </nav>
       <TabsContent value="pdf-to-form">
-        <ExtractionWorkspace extractionApi={extractionApi} schemaApi={schemaApi} />
+        <ExtractionWorkspace
+          extractionApi={extractionApi}
+          schemaApi={schemaApi}
+        />
       </TabsContent>
       <TabsContent value="form-to-pdf">
         <DocumentConfigPanel schemaApi={schemaApi}>
