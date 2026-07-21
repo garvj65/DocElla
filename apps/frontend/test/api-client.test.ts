@@ -3,7 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { FrontendApiError } from "../src/api/api-error";
 import { parseSafePdfFilename } from "../src/api/api-client";
 import { createSchemaApi } from "../src/api/schema-api";
-import { everyFieldConfig, everyFieldSummary, successEnvelope } from "./support/schemas";
+import {
+  everyFieldConfig,
+  everyFieldSummary,
+  successEnvelope,
+} from "./support/schemas";
 
 const jsonResponse = (body: unknown, init: ResponseInit = {}) =>
   new Response(JSON.stringify(body), {
@@ -24,10 +28,14 @@ describe("schema API client", () => {
   });
 
   it("loads and validates schema summaries", async () => {
-    const fetchMock = mockFetch(jsonResponse(successEnvelope([everyFieldSummary])));
+    const fetchMock = mockFetch(
+      jsonResponse(successEnvelope([everyFieldSummary])),
+    );
     const api = createSchemaApi({ apiBaseUrl: "http://localhost:3001/" });
 
-    await expect(api.listDocumentSummaries()).resolves.toEqual([everyFieldSummary]);
+    await expect(api.listDocumentSummaries()).resolves.toEqual([
+      everyFieldSummary,
+    ]);
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:3001/api/schemas",
       expect.objectContaining({ method: "GET" }),
@@ -35,13 +43,15 @@ describe("schema API client", () => {
   });
 
   it("loads details with encoded schema IDs and abort signals", async () => {
-    const fetchMock = mockFetch(jsonResponse(successEnvelope(everyFieldConfig)));
+    const fetchMock = mockFetch(
+      jsonResponse(successEnvelope(everyFieldConfig)),
+    );
     const controller = new AbortController();
     const api = createSchemaApi({ apiBaseUrl: "" });
 
-    await expect(api.getDocumentConfig("invoice/basic", controller.signal)).resolves.toEqual(
-      everyFieldConfig,
-    );
+    await expect(
+      api.getDocumentConfig("invoice/basic", controller.signal),
+    ).resolves.toEqual(everyFieldConfig);
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/schemas/invoice%2Fbasic",
       expect.objectContaining({ signal: controller.signal }),
@@ -66,7 +76,9 @@ describe("schema API client", () => {
       requestId: "req_123",
       status: 404,
     });
-    await expect(api.getDocumentConfig("missing")).rejects.not.toThrow("raw server detail");
+    await expect(api.getDocumentConfig("missing")).rejects.not.toThrow(
+      "raw server detail",
+    );
   });
 
   it("rejects non-JSON, malformed envelopes, and malformed public config", async () => {
@@ -83,11 +95,11 @@ describe("schema API client", () => {
     });
 
     mockFetch(jsonResponse({ nope: true }));
-    await expect(createSchemaApi({ apiBaseUrl: "" }).listDocumentSummaries()).rejects.toMatchObject(
-      {
-        code: "MALFORMED_RESPONSE",
-      },
-    );
+    await expect(
+      createSchemaApi({ apiBaseUrl: "" }).listDocumentSummaries(),
+    ).rejects.toMatchObject({
+      code: "MALFORMED_RESPONSE",
+    });
   });
 
   it("posts exact PDF generation body and accepts binary PDFs", async () => {
@@ -109,7 +121,7 @@ describe("schema API client", () => {
         flatten: false,
         signal: controller.signal,
         templateId: "synthetic-default",
-        values: { fullName: "Sensitive Sentinel" },
+        values: { fullName: "Example Person" },
       }),
     ).resolves.toMatchObject({
       filename: "generated.pdf",
@@ -122,7 +134,7 @@ describe("schema API client", () => {
           flatten: false,
           schemaType: "synthetic",
           templateId: "synthetic-default",
-          values: { fullName: "Sensitive Sentinel" },
+          values: { fullName: "Example Person" },
         }),
         headers: {
           Accept: "application/pdf",
@@ -138,7 +150,10 @@ describe("schema API client", () => {
     mockFetch(
       jsonResponse(
         {
-          error: { code: "PDF_GENERATION_FAILED", message: "C:\\internal\\template.pdf AcroForm" },
+          error: {
+            code: "PDF_GENERATION_FAILED",
+            message: "raw backend library detail",
+          },
           meta: { requestId: "req_pdf" },
           success: false,
         },
@@ -162,11 +177,13 @@ describe("schema API client", () => {
         templateId: "synthetic-default",
         values: {},
       }),
-    ).rejects.not.toThrow("AcroForm");
+    ).rejects.not.toThrow("library detail");
   });
 
   it("rejects invalid PDF responses and unsafe filenames", async () => {
-    mockFetch(new Response("{}", { headers: { "content-type": "application/json" } }));
+    mockFetch(
+      new Response("{}", { headers: { "content-type": "application/json" } }),
+    );
     await expect(
       createSchemaApi({ apiBaseUrl: "" }).generatePdf({
         config: everyFieldConfig,
@@ -175,7 +192,11 @@ describe("schema API client", () => {
       }),
     ).rejects.toMatchObject({ code: "INVALID_PDF_RESPONSE" });
 
-    mockFetch(new Response(new Uint8Array(), { headers: { "content-type": "application/pdf" } }));
+    mockFetch(
+      new Response(new Uint8Array(), {
+        headers: { "content-type": "application/pdf" },
+      }),
+    );
     await expect(
       createSchemaApi({ apiBaseUrl: "" }).generatePdf({
         config: everyFieldConfig,
@@ -197,8 +218,14 @@ describe("schema API client", () => {
       }),
     ).rejects.toMatchObject({ code: "INVALID_PDF_RESPONSE" });
 
-    expect(parseSafePdfFilename('attachment; filename="safe-name.pdf"')).toBe("safe-name.pdf");
-    expect(parseSafePdfFilename('attachment; filename="../secret.pdf"')).toBeUndefined();
-    expect(parseSafePdfFilename('attachment; filename="secret.txt"')).toBeUndefined();
+    expect(parseSafePdfFilename('attachment; filename="safe-name.pdf"')).toBe(
+      "safe-name.pdf",
+    );
+    expect(
+      parseSafePdfFilename('attachment; filename="../secret.pdf"'),
+    ).toBeUndefined();
+    expect(
+      parseSafePdfFilename('attachment; filename="secret.txt"'),
+    ).toBeUndefined();
   });
 });
