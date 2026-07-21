@@ -16,6 +16,8 @@ const validSource = {
   LOG_LEVEL: "info",
   NODE_ENV: "development",
   PORT: "3001",
+  SHUTDOWN_TIMEOUT_MS: "10000",
+  TRUST_PROXY_HOPS: "0",
 } satisfies NodeJS.ProcessEnv;
 
 const expectInvalidField = (source: NodeJS.ProcessEnv, field: string): void => {
@@ -31,19 +33,25 @@ const expectInvalidField = (source: NodeJS.ProcessEnv, field: string): void => {
   }
 };
 
+const expectedDefaults = {
+  extractRateLimitMax: 10,
+  extractRateLimitWindowMs: 60_000,
+  generateRateLimitMax: 20,
+  generateRateLimitWindowMs: 60_000,
+  groqMaxInputCharacters: 30_000,
+  groqMaxRetries: 1,
+  groqModel: "openai/gpt-oss-20b",
+  groqTimeoutMs: 30_000,
+  shutdownTimeoutMs: 10_000,
+  trustProxyHops: 0,
+} as const;
+
 describe("parseEnvironment", () => {
   it("parses a valid development configuration", () => {
     expect(parseEnvironment(validSource)).toEqual({
-      extractRateLimitMax: 10,
-      extractRateLimitWindowMs: 60_000,
+      ...expectedDefaults,
       frontendOrigin: "http://localhost:5173",
-      generateRateLimitMax: 20,
-      generateRateLimitWindowMs: 60_000,
       groqApiKey: "test-secret-key",
-      groqMaxInputCharacters: 30_000,
-      groqMaxRetries: 1,
-      groqModel: "openai/gpt-oss-20b",
-      groqTimeoutMs: 30_000,
       logLevel: "info",
       nodeEnv: "development",
       port: 3001,
@@ -58,21 +66,18 @@ describe("parseEnvironment", () => {
         LOG_LEVEL: "warn",
         NODE_ENV: "production",
         PORT: "8080",
+        SHUTDOWN_TIMEOUT_MS: "15000",
+        TRUST_PROXY_HOPS: "1",
       }),
     ).toEqual({
-      extractRateLimitMax: 10,
-      extractRateLimitWindowMs: 60_000,
+      ...expectedDefaults,
       frontendOrigin: "https://app.example.com",
-      generateRateLimitMax: 20,
-      generateRateLimitWindowMs: 60_000,
       groqApiKey: "production-secret",
-      groqMaxInputCharacters: 30_000,
-      groqMaxRetries: 1,
-      groqModel: "openai/gpt-oss-20b",
-      groqTimeoutMs: 30_000,
       logLevel: "warn",
       nodeEnv: "production",
       port: 8080,
+      shutdownTimeoutMs: 15_000,
+      trustProxyHops: 1,
     });
   });
 
@@ -83,16 +88,9 @@ describe("parseEnvironment", () => {
         GROQ_API_KEY: "default-secret",
       }),
     ).toEqual({
-      extractRateLimitMax: 10,
-      extractRateLimitWindowMs: 60_000,
+      ...expectedDefaults,
       frontendOrigin: "http://localhost:5173",
-      generateRateLimitMax: 20,
-      generateRateLimitWindowMs: 60_000,
       groqApiKey: "default-secret",
-      groqMaxInputCharacters: 30_000,
-      groqMaxRetries: 1,
-      groqModel: "openai/gpt-oss-20b",
-      groqTimeoutMs: 30_000,
       logLevel: "info",
       nodeEnv: "development",
       port: 3001,
@@ -103,41 +101,25 @@ describe("parseEnvironment", () => {
     expectInvalidField({ ...validSource, NODE_ENV: "preview" }, "NODE_ENV");
   });
 
-  it("rejects a port below range", () => {
+  it("rejects invalid ports", () => {
     expectInvalidField({ ...validSource, PORT: "0" }, "PORT");
-  });
-
-  it("rejects a port above range", () => {
     expectInvalidField({ ...validSource, PORT: "65536" }, "PORT");
-  });
-
-  it("rejects a noninteger port", () => {
     expectInvalidField({ ...validSource, PORT: "3001.5" }, "PORT");
   });
 
   it("rejects a missing frontend origin", () => {
     const source: NodeJS.ProcessEnv = { ...validSource };
     delete source.FRONTEND_ORIGIN;
-
     expectInvalidField(source, "FRONTEND_ORIGIN");
   });
 
-  it("rejects an invalid origin URL", () => {
+  it("rejects invalid frontend origins", () => {
     expectInvalidField({ ...validSource, FRONTEND_ORIGIN: "not-a-url" }, "FRONTEND_ORIGIN");
-  });
-
-  it("rejects an unsupported origin protocol", () => {
     expectInvalidField({ ...validSource, FRONTEND_ORIGIN: "file:///tmp/app" }, "FRONTEND_ORIGIN");
-  });
-
-  it("rejects an origin containing a path", () => {
     expectInvalidField(
       { ...validSource, FRONTEND_ORIGIN: "https://example.com/path" },
       "FRONTEND_ORIGIN",
     );
-  });
-
-  it("rejects an origin containing credentials", () => {
     expectInvalidField(
       { ...validSource, FRONTEND_ORIGIN: "https://user:password@example.com" },
       "FRONTEND_ORIGIN",
@@ -148,14 +130,10 @@ describe("parseEnvironment", () => {
     expectInvalidField({ ...validSource, LOG_LEVEL: "verbose" }, "LOG_LEVEL");
   });
 
-  it("rejects a missing Groq API key", () => {
+  it("rejects a missing or blank Groq API key", () => {
     const source: NodeJS.ProcessEnv = { ...validSource };
     delete source.GROQ_API_KEY;
-
     expectInvalidField(source, "GROQ_API_KEY");
-  });
-
-  it("rejects a blank Groq API key", () => {
     expectInvalidField({ ...validSource, GROQ_API_KEY: "   " }, "GROQ_API_KEY");
   });
 
@@ -231,6 +209,27 @@ describe("parseEnvironment", () => {
     );
   });
 
+  it("rejects invalid trust-proxy settings", () => {
+    expectInvalidField({ ...validSource, TRUST_PROXY_HOPS: "-1" }, "TRUST_PROXY_HOPS");
+    expectInvalidField({ ...validSource, TRUST_PROXY_HOPS: "11" }, "TRUST_PROXY_HOPS");
+    expectInvalidField({ ...validSource, TRUST_PROXY_HOPS: "1.5" }, "TRUST_PROXY_HOPS");
+  });
+
+  it("rejects invalid shutdown timeouts", () => {
+    expectInvalidField(
+      { ...validSource, SHUTDOWN_TIMEOUT_MS: "999" },
+      "SHUTDOWN_TIMEOUT_MS",
+    );
+    expectInvalidField(
+      { ...validSource, SHUTDOWN_TIMEOUT_MS: "60001" },
+      "SHUTDOWN_TIMEOUT_MS",
+    );
+    expectInvalidField(
+      { ...validSource, SHUTDOWN_TIMEOUT_MS: "soon" },
+      "SHUTDOWN_TIMEOUT_MS",
+    );
+  });
+
   it("does not include the supplied Groq API key in validation errors", () => {
     const secret = "super-secret-groq-key";
     try {
@@ -239,19 +238,5 @@ describe("parseEnvironment", () => {
       expect(error).toBeInstanceOf(EnvironmentValidationError);
       expect(String((error as Error).message)).not.toContain(secret);
     }
-  });
-
-  it("requires current Groq variables", () => {
-    expect(
-      parseEnvironment({
-        FRONTEND_ORIGIN: "http://localhost:5173",
-        GROQ_API_KEY: "required-now",
-        GROQ_MAX_RETRIES: "1",
-        GROQ_MODEL: "openai/gpt-oss-20b",
-        GROQ_TIMEOUT_MS: "30000",
-      }),
-    ).toMatchObject({
-      frontendOrigin: "http://localhost:5173",
-    });
   });
 });
