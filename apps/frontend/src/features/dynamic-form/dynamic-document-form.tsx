@@ -122,9 +122,7 @@ export function SchemaDrivenForm({
   title,
   validationSuccessMessage,
 }: SchemaDrivenFormProps & {
-  readonly children?:
-    | ReactNode
-    | ((validationState: ValidationState) => ReactNode);
+  readonly children?: ReactNode | ((validationState: ValidationState) => ReactNode);
 }) {
   const [validationState, setValidationState] =
     useState<ValidationState>("idle");
