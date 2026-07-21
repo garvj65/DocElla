@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createTestApp } from "./support/create-test-app.js";
 
 describe("GET /api/health", () => {
-  it("returns the health envelope", async () => {
+  it("returns the versioned health envelope", async () => {
     const app = createTestApp();
     const response = await request(app)
       .get("/api/health")
@@ -15,12 +15,14 @@ describe("GET /api/health", () => {
       data: {
         service: "DocElla API",
         status: "ok",
+        version: "1.0.0",
       },
       meta: {
         requestId: response.headers["x-request-id"],
       },
       success: true,
     });
+    expect(response.headers["cache-control"]).toBe("no-store");
   });
 
   it("returns a generated request ID", async () => {
