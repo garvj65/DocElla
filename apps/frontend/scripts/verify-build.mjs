@@ -58,10 +58,6 @@ for (const asset of assets) {
       throw new Error("Sentinel test data appeared in compiled frontend assets.");
     }
   }
-
-  if (assetText.includes("/api/generate-pdf")) {
-    throw new Error("PDF generation mutation endpoint appeared in T09 frontend assets.");
-  }
 }
 
 const sourceRoot = fileURLToPath(new URL("../src/", import.meta.url));
@@ -78,15 +74,28 @@ const collectSourceFiles = (directory) => {
 };
 collectSourceFiles(sourceRoot);
 
-const extractReferences = sourceFiles.filter((file) => {
-  const text = readFileSync(file, "utf8");
-  return text.includes('"/api/extract"') || text.includes("'/api/extract'");
-});
+const endpointReferences = (endpoint) =>
+  sourceFiles.filter((file) => {
+    const text = readFileSync(file, "utf8");
+    return text.includes(`"${endpoint}"`) || text.includes(`'${endpoint}'`);
+  });
+
+const extractReferences = endpointReferences("/api/extract");
 if (
   extractReferences.length !== 1 ||
   !normalize(extractReferences[0]).endsWith(normalize("api/extraction-api.ts"))
 ) {
   throw new Error("/api/extract must appear only in the intended extraction API module.");
+}
+
+const generationReferences = endpointReferences("/api/generate-pdf");
+if (
+  generationReferences.length !== 1 ||
+  !normalize(generationReferences[0]).endsWith(normalize("api/schema-api.ts"))
+) {
+  throw new Error(
+    "/api/generate-pdf must appear only in the intended PDF generation API module.",
+  );
 }
 
 console.log("Frontend production build smoke passed.");
