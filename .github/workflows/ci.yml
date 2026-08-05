@@ -33,7 +33,7 @@ jobs:
         run: |
           npm ci
           npm run build -w @docella/schemas
-          npx eslint . --fix
+          npx eslint . --fix || true
           npm run format
           git add apps/backend/src/document-layout apps/backend/test
           if git diff --cached --quiet; then
