@@ -22,9 +22,7 @@ import {
 interface GenericValueDefinition {
   readonly description: string;
   readonly options?: readonly GenericSelectOption[];
-  readonly valueType:
-    | DiscoveredField["valueType"]
-    | DiscoveredTableColumn["valueType"];
+  readonly valueType: DiscoveredField["valueType"] | DiscoveredTableColumn["valueType"];
 }
 
 const nonblankString = (maximumLength = GENERIC_DOCUMENT_LIMITS.maxValueLength): z.ZodString =>
