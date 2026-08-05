@@ -32,11 +32,7 @@ export const genericIdentifierSchema = z
   .max(GENERIC_DOCUMENT_LIMITS.maxIdentifierLength)
   .regex(identifierPattern, "Expected a stable lowercase identifier.");
 
-const boundedLabelSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(GENERIC_DOCUMENT_LIMITS.maxLabelLength);
+const boundedLabelSchema = z.string().trim().min(1).max(GENERIC_DOCUMENT_LIMITS.maxLabelLength);
 
 const boundedDescriptionSchema = z
   .string()
@@ -265,7 +261,10 @@ export const discoveredDocumentSchemaSchema = z
       });
     }
 
-    const totalTableColumns = schema.tables.reduce((total, table) => total + table.columns.length, 0);
+    const totalTableColumns = schema.tables.reduce(
+      (total, table) => total + table.columns.length,
+      0,
+    );
     if (totalFields === 0 && totalTableColumns === 0) {
       context.addIssue({
         code: "custom",
@@ -440,7 +439,10 @@ export type GenericWarningCode = z.infer<typeof genericWarningCodeSchema>;
 export const genericDocumentWarningSchema = z
   .object({
     code: genericWarningCodeSchema,
-    fieldIds: z.array(genericIdentifierSchema).max(GENERIC_DOCUMENT_LIMITS.maxTotalFields).optional(),
+    fieldIds: z
+      .array(genericIdentifierSchema)
+      .max(GENERIC_DOCUMENT_LIMITS.maxTotalFields)
+      .optional(),
     message: z.string().trim().min(1).max(500),
     tableIds: z.array(genericIdentifierSchema).max(GENERIC_DOCUMENT_LIMITS.maxTables).optional(),
   })
