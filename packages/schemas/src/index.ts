@@ -106,6 +106,10 @@ export {
   type ExtractionSchema,
 } from "./builders/build-extraction-schema.js";
 export {
+  buildGenericDiscoveryJsonSchema,
+  buildGenericExtractionJsonSchema,
+} from "./builders/build-generic-json-schema.js";
+export {
   buildGenericDocumentExtractionResultSchema,
   buildGenericDocumentExtractionValuesSchema,
   buildGenericDocumentReviewSchema,
