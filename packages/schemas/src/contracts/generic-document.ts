@@ -59,6 +59,13 @@ export const genericValueTypeSchema = z.enum([
 
 export type GenericValueType = z.infer<typeof genericValueTypeSchema>;
 
+export const genericTableCellValueTypeSchema = genericValueTypeSchema.exclude([
+  "long_text",
+  "select",
+]);
+
+export type GenericTableCellValueType = z.infer<typeof genericTableCellValueTypeSchema>;
+
 export const genericSelectOptionSchema = z
   .object({
     label: boundedLabelSchema,
@@ -158,7 +165,7 @@ export const discoveredTableColumnSchema = z
     id: genericIdentifierSchema,
     label: boundedLabelSchema,
     required: z.boolean(),
-    valueType: genericValueTypeSchema.exclude(["long_text"]),
+    valueType: genericTableCellValueTypeSchema,
   })
   .strict();
 
@@ -366,41 +373,54 @@ export const genericReviewStatusSchema = z.enum([
 
 export type GenericReviewStatus = z.infer<typeof genericReviewStatusSchema>;
 
+const genericValueReviewShape = {
+  confidence: z.number().finite().min(0).max(1),
+  evidence: z
+    .array(genericEvidenceAnchorSchema)
+    .max(GENERIC_DOCUMENT_LIMITS.maxEvidenceItemsPerValue)
+    .readonly(),
+  message: z.string().trim().min(1).max(500).optional(),
+  status: genericReviewStatusSchema,
+} as const;
+
+const validateGenericReview = (
+  review: {
+    readonly confidence: number;
+    readonly evidence: readonly unknown[];
+    readonly status: GenericReviewStatus;
+  },
+  context: z.RefinementCtx,
+): void => {
+  if (review.status === "missing" && review.confidence !== 0) {
+    context.addIssue({
+      code: "custom",
+      message: "Missing values must have zero confidence.",
+      path: ["confidence"],
+    });
+  }
+  if (review.status === "verified" && review.evidence.length === 0) {
+    context.addIssue({
+      code: "custom",
+      message: "Verified values require at least one evidence anchor.",
+      path: ["evidence"],
+    });
+  }
+};
+
 export const genericValueReviewSchema = z
-  .object({
-    confidence: z.number().finite().min(0).max(1),
-    evidence: z
-      .array(genericEvidenceAnchorSchema)
-      .max(GENERIC_DOCUMENT_LIMITS.maxEvidenceItemsPerValue)
-      .readonly(),
-    message: z.string().trim().min(1).max(500).optional(),
-    status: genericReviewStatusSchema,
-  })
+  .object(genericValueReviewShape)
   .strict()
-  .superRefine((review, context) => {
-    if (review.status === "missing" && review.confidence !== 0) {
-      context.addIssue({
-        code: "custom",
-        message: "Missing values must have zero confidence.",
-        path: ["confidence"],
-      });
-    }
-    if (review.status === "verified" && review.evidence.length === 0) {
-      context.addIssue({
-        code: "custom",
-        message: "Verified values require at least one evidence anchor.",
-        path: ["evidence"],
-      });
-    }
-  });
+  .superRefine(validateGenericReview);
 
 export type GenericValueReview = z.infer<typeof genericValueReviewSchema>;
 
-export const genericTableReviewSchema = genericValueReviewSchema
-  .extend({
+export const genericTableReviewSchema = z
+  .object({
+    ...genericValueReviewShape,
     rowCount: z.number().int().nonnegative(),
   })
-  .strict();
+  .strict()
+  .superRefine(validateGenericReview);
 
 export type GenericTableReview = z.infer<typeof genericTableReviewSchema>;
 
