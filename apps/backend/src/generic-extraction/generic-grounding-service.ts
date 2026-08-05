@@ -29,10 +29,7 @@ import {
   numbersMatch,
   parseIsoDate,
 } from "../grounding/normalization.js";
-import type {
-  GenericGroundingRequest,
-  GenericGroundingService,
-} from "./generic-extraction-types.js";
+import type { GenericGroundingService } from "./generic-extraction-types.js";
 
 const CONFIDENCE = {
   lowOcr: 0.55,
@@ -193,6 +190,10 @@ const missingReview = (): GenericValueReview => ({
   status: "missing",
 });
 
+const isScalarArray = (
+  value: GenericFieldValue,
+): value is readonly GenericScalarValue[] => Array.isArray(value);
+
 const reviewValue = (
   field: DiscoveredField,
   value: GenericFieldValue,
@@ -200,19 +201,21 @@ const reviewValue = (
   layout: DocumentLayoutResult,
 ): GenericValueReview => {
   if (value === null) return missingReview();
-  const values = Array.isArray(value) ? value : [value];
+  const values = isScalarArray(value) ? value : [value];
   const matches = values.map((item) => matchScalar(field, item, candidates, layout));
   const anchors = deduplicateAnchors(matches.flatMap((match) => match.anchors));
   const supportedValues = matches.filter((match) => match.anchors.length > 0).length;
 
   if (supportedValues === values.length && anchors.length > 0) {
     const lowOcr = matches.some((match) => match.lowOcr);
-    return {
+    const review = {
       confidence: lowOcr ? CONFIDENCE.lowOcr : CONFIDENCE.verified,
       evidence: anchors,
-      message: lowOcr ? "The source evidence has low OCR confidence." : undefined,
-      status: lowOcr ? "low_ocr_confidence" : "verified",
+      status: lowOcr ? ("low_ocr_confidence" as const) : ("verified" as const),
     };
+    return lowOcr
+      ? { ...review, message: "The source evidence has low OCR confidence." }
+      : review;
   }
 
   return {
@@ -270,13 +273,15 @@ const reviewTable = (
 
   const anchors = deduplicateAnchors(evidence);
   if (populatedCells > 0 && supportedCells === populatedCells && anchors.length > 0) {
-    return {
+    const review = {
       confidence: lowOcr ? CONFIDENCE.lowOcr : CONFIDENCE.verified,
       evidence: anchors,
-      message: lowOcr ? "Some table evidence has low OCR confidence." : undefined,
       rowCount: rows.length,
-      status: lowOcr ? "low_ocr_confidence" : "verified",
+      status: lowOcr ? ("low_ocr_confidence" as const) : ("verified" as const),
     };
+    return lowOcr
+      ? { ...review, message: "Some table evidence has low OCR confidence." }
+      : review;
   }
 
   return {
