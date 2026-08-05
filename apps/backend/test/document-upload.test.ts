@@ -8,7 +8,8 @@ import {
   getValidatedDocumentUpload,
 } from "../src/middleware/document-upload.js";
 
-const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => {
+const errorHandler: ErrorRequestHandler = (error, _request, response, next) => {
+  void next;
   if (error instanceof AppError) {
     response.status(error.status).json({ code: error.code, message: error.message });
     return;

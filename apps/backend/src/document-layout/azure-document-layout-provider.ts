@@ -88,6 +88,8 @@ interface ProviderOperationResult {
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const isUnknownArray = (value: unknown): value is readonly unknown[] => Array.isArray(value);
+
 const providerError = (
   code: (typeof ERROR_CODES)[keyof typeof ERROR_CODES],
   message: string,
@@ -231,7 +233,7 @@ const normalizePolygon = (
   height: number,
 ): readonly GenericBoundingPoint[] | undefined => {
   if (
-    !Array.isArray(value) ||
+    !isUnknownArray(value) ||
     value.length < 8 ||
     value.length % 2 !== 0 ||
     width <= 0 ||
@@ -391,23 +393,28 @@ const parseAnalyzeResult = (
   };
 };
 
+const abortReason = (signal: AbortSignal): Error => {
+  const reason: unknown = signal.reason;
+  return reason instanceof Error ? reason : new Error("Document layout analysis was aborted.");
+};
+
 const delay = (milliseconds: number, signal: AbortSignal): Promise<void> =>
   new Promise((resolve, reject) => {
     if (signal.aborted) {
-      reject(signal.reason);
+      reject(abortReason(signal));
       return;
     }
     const timeout = setTimeout(resolve, milliseconds);
     const onAbort = (): void => {
       clearTimeout(timeout);
-      reject(signal.reason);
+      reject(abortReason(signal));
     };
     signal.addEventListener("abort", onAbort, { once: true });
     void Promise.resolve().then(() => {
       if (!signal.aborted) return;
       clearTimeout(timeout);
       signal.removeEventListener("abort", onAbort);
-      reject(signal.reason);
+      reject(abortReason(signal));
     });
   });
 

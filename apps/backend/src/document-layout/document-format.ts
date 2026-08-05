@@ -284,6 +284,12 @@ const formats: readonly FormatDefinition[] = [
   },
 ];
 
+const hasControlCharacters = (value: string): boolean =>
+  Array.from(value).some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 31 || code === 127;
+  });
+
 const validateFilename = (filename: string): string => {
   const trimmed = filename.trim();
   if (
@@ -291,7 +297,7 @@ const validateFilename = (filename: string): string => {
     trimmed.length > 255 ||
     trimmed.includes("/") ||
     trimmed.includes("\\") ||
-    /[\u0000-\u001F\u007F]/u.test(trimmed)
+    hasControlCharacters(trimmed)
   ) {
     throw unsupportedFormat();
   }
