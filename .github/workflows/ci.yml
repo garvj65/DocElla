@@ -6,20 +6,22 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  format-diff:
-    name: Print Generic Grounding Formatter Patch
+  format:
+    name: Apply Generic Grounding Formatting
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out repository
+      - name: Check out PR branch
         uses: actions/checkout@v4
+        with:
+          ref: agent/pr3-arbitrary-document-extraction
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -27,9 +29,15 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Print exact formatter patch
+      - name: Apply exact formatting
         run: |
           npm ci
           npx prettier apps/backend/src/generic-extraction/generic-grounding-service.ts --write
-          git diff -- apps/backend/src/generic-extraction/generic-grounding-service.ts
-          exit 1
+          git add apps/backend/src/generic-extraction/generic-grounding-service.ts
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "style: format generic grounding service"
+          git push origin HEAD:agent/pr3-arbitrary-document-extraction
