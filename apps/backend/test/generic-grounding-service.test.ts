@@ -191,13 +191,16 @@ describe("createGenericGroundingService", () => {
   });
 
   it("uses low OCR confidence instead of verified when evidence is uncertain", () => {
+    const sourceTable = layout.tables[0];
+    if (sourceTable === undefined) throw new Error("Expected a layout table fixture.");
+
     const lowConfidenceLayout: DocumentLayoutResult = {
       ...layout,
       paragraphs: [],
       tables: [
         {
-          ...layout.tables[0]!,
-          cells: layout.tables[0]!.cells.map((cell) => ({ ...cell, confidence: 0.3 })),
+          ...sourceTable,
+          cells: sourceTable.cells.map((cell) => ({ ...cell, confidence: 0.3 })),
         },
       ],
     };
