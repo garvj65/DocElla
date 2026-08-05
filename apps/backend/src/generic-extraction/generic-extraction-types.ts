@@ -31,6 +31,7 @@ export interface GenericValueExtractor {
 
 export interface GenericGroundingRequest {
   readonly documentSchema: DiscoveredDocumentSchema;
+  readonly inputTruncated: boolean;
   readonly layout: DocumentLayoutResult;
   readonly values: GenericDocumentValues;
 }
