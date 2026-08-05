@@ -9,6 +9,10 @@ export type LogLevel = (typeof logLevels)[number];
 export type GroqStrictModel = (typeof groqStrictModels)[number];
 
 export interface Environment {
+  readonly azureDocumentIntelligenceEndpoint?: string;
+  readonly azureDocumentIntelligenceKey?: string;
+  readonly azureDocumentIntelligencePollIntervalMs?: number;
+  readonly azureDocumentIntelligenceTimeoutMs?: number;
   readonly nodeEnv: NodeEnvironment;
   readonly port: number;
   readonly frontendOrigin: string;
@@ -124,26 +128,85 @@ const frontendOriginSchema = z
     }
   });
 
-const environmentSchema = z.object({
-  EXTRACT_RATE_LIMIT_MAX: integerFromString(1, 100, 10),
-  EXTRACT_RATE_LIMIT_WINDOW_MS: integerFromString(1_000, 3_600_000, 60_000),
-  FRONTEND_ORIGIN: frontendOriginSchema,
-  GENERATE_RATE_LIMIT_MAX: integerFromString(1, 200, 20),
-  GENERATE_RATE_LIMIT_WINDOW_MS: integerFromString(1_000, 3_600_000, 60_000),
-  GROQ_API_KEY: z
-    .string({ error: "is required" })
+const optionalSecretSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim().length === 0 ? undefined : value),
+  z
+    .string()
     .transform((value) => value.trim())
-    .refine((value) => value.length > 0, "is required"),
-  GROQ_MAX_INPUT_CHARACTERS: integerFromString(1_000, 100_000, 30_000),
-  GROQ_MAX_RETRIES: integerFromString(0, 2, 1),
-  GROQ_MODEL: z.enum(groqStrictModels).default("openai/gpt-oss-20b"),
-  GROQ_TIMEOUT_MS: integerFromString(1_000, 120_000, 30_000),
-  LOG_LEVEL: z.enum(logLevels).default("info"),
-  NODE_ENV: z.enum(nodeEnvironments).default("development"),
-  PORT: portSchema,
-  SHUTDOWN_TIMEOUT_MS: integerFromString(1_000, 60_000, 10_000),
-  TRUST_PROXY_HOPS: integerFromString(0, 10, 0),
-});
+    .optional(),
+);
+
+const optionalAzureEndpointSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim().length === 0 ? undefined : value),
+  z
+    .string()
+    .transform((value, context) => {
+      try {
+        const url = new URL(value.trim());
+        if (
+          url.protocol !== "https:" ||
+          url.username !== "" ||
+          url.password !== "" ||
+          url.pathname !== "/" ||
+          url.search !== "" ||
+          url.hash !== ""
+        ) {
+          context.addIssue({
+            code: "custom",
+            message: "must be an HTTPS origin without credentials, path, query, or fragment",
+          });
+          return z.NEVER;
+        }
+        return url.origin;
+      } catch {
+        context.addIssue({ code: "custom", message: "must be a valid HTTPS origin" });
+        return z.NEVER;
+      }
+    })
+    .optional(),
+);
+
+const environmentSchema = z
+  .object({
+    AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: optionalAzureEndpointSchema,
+    AZURE_DOCUMENT_INTELLIGENCE_KEY: optionalSecretSchema,
+    AZURE_DOCUMENT_INTELLIGENCE_POLL_INTERVAL_MS: integerFromString(100, 5_000, 500),
+    AZURE_DOCUMENT_INTELLIGENCE_TIMEOUT_MS: integerFromString(5_000, 180_000, 90_000),
+    EXTRACT_RATE_LIMIT_MAX: integerFromString(1, 100, 10),
+    EXTRACT_RATE_LIMIT_WINDOW_MS: integerFromString(1_000, 3_600_000, 60_000),
+    FRONTEND_ORIGIN: frontendOriginSchema,
+    GENERATE_RATE_LIMIT_MAX: integerFromString(1, 200, 20),
+    GENERATE_RATE_LIMIT_WINDOW_MS: integerFromString(1_000, 3_600_000, 60_000),
+    GROQ_API_KEY: z
+      .string({ error: "is required" })
+      .transform((value) => value.trim())
+      .refine((value) => value.length > 0, "is required"),
+    GROQ_MAX_INPUT_CHARACTERS: integerFromString(1_000, 100_000, 30_000),
+    GROQ_MAX_RETRIES: integerFromString(0, 2, 1),
+    GROQ_MODEL: z.enum(groqStrictModels).default("openai/gpt-oss-20b"),
+    GROQ_TIMEOUT_MS: integerFromString(1_000, 120_000, 30_000),
+    LOG_LEVEL: z.enum(logLevels).default("info"),
+    NODE_ENV: z.enum(nodeEnvironments).default("development"),
+    PORT: portSchema,
+    SHUTDOWN_TIMEOUT_MS: integerFromString(1_000, 60_000, 10_000),
+    TRUST_PROXY_HOPS: integerFromString(0, 10, 0),
+  })
+  .superRefine((value, context) => {
+    const hasEndpoint = value.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT !== undefined;
+    const hasKey = value.AZURE_DOCUMENT_INTELLIGENCE_KEY !== undefined;
+    if (hasEndpoint !== hasKey) {
+      context.addIssue({
+        code: "custom",
+        message: "must be configured together with AZURE_DOCUMENT_INTELLIGENCE_KEY",
+        path: ["AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT"],
+      });
+      context.addIssue({
+        code: "custom",
+        message: "must be configured together with AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
+        path: ["AZURE_DOCUMENT_INTELLIGENCE_KEY"],
+      });
+    }
+  });
 
 export const parseEnvironment = (source: NodeJS.ProcessEnv): Environment => {
   const result = environmentSchema.safeParse(source);
@@ -157,7 +220,20 @@ export const parseEnvironment = (source: NodeJS.ProcessEnv): Environment => {
     );
   }
 
+  const azureConfiguration =
+    result.data.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT === undefined ||
+    result.data.AZURE_DOCUMENT_INTELLIGENCE_KEY === undefined
+      ? {}
+      : {
+          azureDocumentIntelligenceEndpoint: result.data.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT,
+          azureDocumentIntelligenceKey: result.data.AZURE_DOCUMENT_INTELLIGENCE_KEY,
+          azureDocumentIntelligencePollIntervalMs:
+            result.data.AZURE_DOCUMENT_INTELLIGENCE_POLL_INTERVAL_MS,
+          azureDocumentIntelligenceTimeoutMs: result.data.AZURE_DOCUMENT_INTELLIGENCE_TIMEOUT_MS,
+        };
+
   return {
+    ...azureConfiguration,
     extractRateLimitMax: result.data.EXTRACT_RATE_LIMIT_MAX,
     extractRateLimitWindowMs: result.data.EXTRACT_RATE_LIMIT_WINDOW_MS,
     frontendOrigin: result.data.FRONTEND_ORIGIN,
