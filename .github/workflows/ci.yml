@@ -4,24 +4,25 @@ on:
   pull_request:
     branches:
       - main
+  push:
+    branches:
+      - main
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  lint-fix:
-    name: Apply Remaining PR2 Lint Fixes
+  checks:
+    name: Repository Gates
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out PR branch
+      - name: Check out repository
         uses: actions/checkout@v4
-        with:
-          ref: agent/pr2-multiformat-ingestion
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -29,52 +30,62 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Apply remaining lint fixes
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build and verify release artifacts
+        run: npm run verify:release
+
+  container:
+    name: Production Container
+    needs: checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build production image
+        run: docker build --tag docella:ci .
+
+      - name: Start production image
         run: |
-          python - <<'PY'
-          from pathlib import Path
+          docker run --detach --name docella-ci --publish 3001:3001 \
+            --env NODE_ENV=production \
+            --env PORT=3001 \
+            --env FRONTEND_ORIGIN=http://localhost:3001 \
+            --env GROQ_API_KEY=ci-not-used \
+            --env TRUST_PROXY_HOPS=0 \
+            --env SHUTDOWN_TIMEOUT_MS=5000 \
+            docella:ci
 
-          azure = Path("apps/backend/src/document-layout/azure-document-layout-provider.ts")
-          text = azure.read_text()
-          text = text.replace(
-              'const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>\n  typeof value === "object" && value !== null && !Array.isArray(value);',
-              'const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>\n  typeof value === "object" && value !== null && !Array.isArray(value);\n\nconst isUnknownArray = (value: unknown): value is readonly unknown[] => Array.isArray(value);',
-          )
-          text = text.replace(
-              '!Array.isArray(value) ||\n    value.length < 8 ||',
-              '!isUnknownArray(value) ||\n    value.length < 8 ||',
-              1,
-          )
-          text = text.replace(
-              'const delay = (milliseconds: number, signal: AbortSignal): Promise<void> =>\n  new Promise((resolve, reject) => {\n    if (signal.aborted) {\n      reject(signal.reason);',
-              'const abortReason = (signal: AbortSignal): Error => {\n  const reason: unknown = signal.reason;\n  return reason instanceof Error ? reason : new Error("Document layout analysis was aborted.");\n};\n\nconst delay = (milliseconds: number, signal: AbortSignal): Promise<void> =>\n  new Promise((resolve, reject) => {\n    if (signal.aborted) {\n      reject(abortReason(signal));',
-          )
-          text = text.replace('reject(signal.reason);', 'reject(abortReason(signal));')
-          azure.write_text(text)
+      - name: Verify container health and frontend
+        run: |
+          for attempt in {1..30}; do
+            if node -e "fetch('http://127.0.0.1:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; then
+              break
+            fi
+            if [ "$attempt" = "30" ]; then
+              docker logs docella-ci
+              exit 1
+            fi
+            sleep 1
+          done
+          node -e "Promise.all([fetch('http://127.0.0.1:3001/'), fetch('http://127.0.0.1:3001/api/schemas')]).then(async ([home, schemas]) => { if (!home.ok || !schemas.ok || !(await home.text()).includes('DocElla')) process.exit(1); }).catch(() => process.exit(1))"
+          test "$(docker exec docella-ci id -u)" != "0"
 
-          document_format = Path("apps/backend/src/document-layout/document-format.ts")
-          text = document_format.read_text()
-          text = text.replace(
-              'const validateFilename = (filename: string): string => {',
-              'const hasControlCharacters = (value: string): boolean =>\n  Array.from(value).some((character) => {\n    const code = character.charCodeAt(0);\n    return code <= 31 || code === 127;\n  });\n\nconst validateFilename = (filename: string): string => {',
-          )
-          text = text.replace('/[\\u0000-\\u001F\\u007F]/u.test(trimmed)', 'hasControlCharacters(trimmed)')
-          document_format.write_text(text)
-
-          upload_test = Path("apps/backend/test/document-upload.test.ts")
-          text = upload_test.read_text()
-          text = text.replace(
-              'const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => {',
-              'const errorHandler: ErrorRequestHandler = (error, _request, response, next) => {\n  void next;',
-          )
-          upload_test.write_text(text)
-          PY
-          npm ci
-          npm run format
-          npm run build -w @docella/schemas
-          npx eslint apps/backend/src/document-layout/azure-document-layout-provider.ts apps/backend/src/document-layout/document-format.ts apps/backend/test/document-upload.test.ts
-          git add apps/backend/src/document-layout/azure-document-layout-provider.ts apps/backend/src/document-layout/document-format.ts apps/backend/test/document-upload.test.ts
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git commit -m "fix: resolve multi-format ingestion lint findings"
-          git push origin HEAD:agent/pr2-multiformat-ingestion
+      - name: Stop production image
+        if: always()
+        run: docker rm --force docella-ci || true
