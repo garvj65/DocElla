@@ -339,8 +339,8 @@ export type GenericEvidenceLocation = z.infer<typeof genericEvidenceLocationSche
 
 export const genericBoundingPointSchema = z
   .object({
-    x: z.number().finite().min(0).max(1),
-    y: z.number().finite().min(0).max(1),
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
   })
   .strict();
 
@@ -355,7 +355,7 @@ export const genericEvidenceAnchorSchema = z
       .readonly()
       .optional(),
     location: genericEvidenceLocationSchema,
-    providerConfidence: z.number().finite().min(0).max(1).optional(),
+    providerConfidence: z.number().min(0).max(1).optional(),
     text: z.string().trim().min(1).max(GENERIC_DOCUMENT_LIMITS.maxEvidenceTextLength),
   })
   .strict();
@@ -373,7 +373,7 @@ export const genericReviewStatusSchema = z.enum([
 export type GenericReviewStatus = z.infer<typeof genericReviewStatusSchema>;
 
 const genericValueReviewShape = {
-  confidence: z.number().finite().min(0).max(1),
+  confidence: z.number().min(0).max(1),
   evidence: z
     .array(genericEvidenceAnchorSchema)
     .max(GENERIC_DOCUMENT_LIMITS.maxEvidenceItemsPerValue)
