@@ -21,11 +21,11 @@ import type {
 const environment = parseEnvironment({
   FRONTEND_ORIGIN: "http://localhost:5173",
   GROQ_API_KEY: "test-secret",
-  GROQ_MAX_INPUT_CHARACTERS: "20",
+  GROQ_MAX_INPUT_CHARACTERS: "1000",
 });
 
 const layout: DocumentLayoutResult = {
-  content: "This content is longer than twenty characters.",
+  content: "A".repeat(1001),
   contentUnit: "page",
   contentUnitCount: 1,
   paragraphs: [],
