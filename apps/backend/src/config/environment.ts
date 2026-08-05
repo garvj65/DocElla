@@ -130,7 +130,10 @@ const frontendOriginSchema = z
 
 const optionalSecretSchema = z.preprocess(
   (value) => (typeof value === "string" && value.trim().length === 0 ? undefined : value),
-  z.string().transform((value) => value.trim()).optional(),
+  z
+    .string()
+    .transform((value) => value.trim())
+    .optional(),
 );
 
 const optionalAzureEndpointSchema = z.preprocess(
@@ -222,13 +225,11 @@ export const parseEnvironment = (source: NodeJS.ProcessEnv): Environment => {
     result.data.AZURE_DOCUMENT_INTELLIGENCE_KEY === undefined
       ? {}
       : {
-          azureDocumentIntelligenceEndpoint:
-            result.data.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT,
+          azureDocumentIntelligenceEndpoint: result.data.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT,
           azureDocumentIntelligenceKey: result.data.AZURE_DOCUMENT_INTELLIGENCE_KEY,
           azureDocumentIntelligencePollIntervalMs:
             result.data.AZURE_DOCUMENT_INTELLIGENCE_POLL_INTERVAL_MS,
-          azureDocumentIntelligenceTimeoutMs:
-            result.data.AZURE_DOCUMENT_INTELLIGENCE_TIMEOUT_MS,
+          azureDocumentIntelligenceTimeoutMs: result.data.AZURE_DOCUMENT_INTELLIGENCE_TIMEOUT_MS,
         };
 
   return {
