@@ -216,7 +216,7 @@ export const buildGenericDocumentExtractionResultSchema = (
 
   return z
     .object({
-      confidence: z.number().finite().min(0).max(1),
+      confidence: z.number().min(0).max(1),
       document: genericDocumentMetadataSchema,
       review: reviewSchema,
       reviewRequired: z.boolean(),
@@ -238,7 +238,7 @@ export const buildGenericDocumentExtractionResultSchema = (
       }
 
       let requiresReview = result.confidence < 0.75;
-      const values = result.values.fields as Readonly<Record<string, GenericFieldValue>>;
+      const values = result.values.fields;
       const reviews = result.review.fields;
 
       for (const field of allFields(schema)) {
@@ -315,5 +315,5 @@ export const buildGenericDocumentExtractionResultSchema = (
           path: ["reviewRequired"],
         });
       }
-    }) as unknown as z.ZodType<GenericDocumentExtractionResult>;
+    });
 };
