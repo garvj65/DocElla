@@ -21,12 +21,15 @@ import {
 
 interface GenericValueDefinition {
   readonly description: string;
-  readonly options?: readonly GenericSelectOption[];
+  readonly options?: readonly GenericSelectOption[] | undefined;
   readonly valueType: DiscoveredField["valueType"] | DiscoveredTableColumn["valueType"];
 }
 
-const nonblankString = (maximumLength = GENERIC_DOCUMENT_LIMITS.maxValueLength): z.ZodString =>
-  z.string().trim().min(1).max(maximumLength);
+type MutableSchemaShape = Record<string, z.ZodType>;
+
+const nonblankString = (
+  maximumLength: number = GENERIC_DOCUMENT_LIMITS.maxValueLength,
+): z.ZodString => z.string().trim().min(1).max(maximumLength);
 
 const finiteNumber = (): z.ZodNumber =>
   z.number().refine(Number.isFinite, "Expected a finite number.");
@@ -101,8 +104,8 @@ const buildSubmissionTableCellSchema = (column: DiscoveredTableColumn): z.ZodTyp
 const buildFieldShape = (
   schema: DiscoveredDocumentSchema,
   mode: "extraction" | "submission",
-): z.ZodRawShape => {
-  const shape: z.ZodRawShape = {};
+): MutableSchemaShape => {
+  const shape: MutableSchemaShape = {};
   for (const section of schema.sections) {
     for (const field of section.fields) {
       shape[field.id] =
@@ -117,11 +120,11 @@ const buildFieldShape = (
 const buildTableShape = (
   schema: DiscoveredDocumentSchema,
   mode: "extraction" | "submission",
-): z.ZodRawShape => {
-  const tables: z.ZodRawShape = {};
+): MutableSchemaShape => {
+  const tables: MutableSchemaShape = {};
 
   for (const table of schema.tables) {
-    const rowShape: z.ZodRawShape = {};
+    const rowShape: MutableSchemaShape = {};
     for (const column of table.columns) {
       rowShape[column.id] =
         mode === "extraction"
@@ -166,8 +169,8 @@ export const buildGenericDocumentReviewSchema = (
   input: DiscoveredDocumentSchema,
 ): z.ZodType<GenericDocumentReview> => {
   const schema = discoveredDocumentSchemaSchema.parse(input);
-  const fieldShape: z.ZodRawShape = {};
-  const tableShape: z.ZodRawShape = {};
+  const fieldShape: MutableSchemaShape = {};
+  const tableShape: MutableSchemaShape = {};
 
   for (const section of schema.sections) {
     for (const field of section.fields) {
