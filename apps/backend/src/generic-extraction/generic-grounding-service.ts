@@ -352,7 +352,8 @@ export const createGenericGroundingService = (): GenericGroundingService => ({
       score += review.confidence;
       if (review.status !== "verified") {
         warnings.push({
-          code: review.status === "low_ocr_confidence" ? "low_ocr_confidence" : "table_needs_review",
+          code:
+            review.status === "low_ocr_confidence" ? "low_ocr_confidence" : "table_needs_review",
           message: "A discovered table requires review.",
           tableIds: [table.id],
         });
@@ -362,7 +363,8 @@ export const createGenericGroundingService = (): GenericGroundingService => ({
     if (inputTruncated) {
       warnings.push({
         code: "truncated_input",
-        message: "Only the configured leading document content was provided to the extraction model.",
+        message:
+          "Only the configured leading document content was provided to the extraction model.",
       });
     }
 

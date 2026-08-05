@@ -1,7 +1,4 @@
-import type {
-  DiscoveredDocumentSchema,
-  GenericDocumentValues,
-} from "@docella/schemas";
+import type { DiscoveredDocumentSchema, GenericDocumentValues } from "@docella/schemas";
 import { describe, expect, it } from "vitest";
 
 import type { DocumentLayoutResult } from "../src/document-layout/document-layout-types.js";

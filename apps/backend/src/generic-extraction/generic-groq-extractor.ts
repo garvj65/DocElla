@@ -25,10 +25,7 @@ import {
   buildGenericExtractionSystemInstruction,
   buildGenericExtractionUserMessage,
 } from "./generic-extraction-prompt.js";
-import type {
-  GenericSchemaDiscoverer,
-  GenericValueExtractor,
-} from "./generic-extraction-types.js";
+import type { GenericSchemaDiscoverer, GenericValueExtractor } from "./generic-extraction-types.js";
 
 const GENERIC_COMPLETION_TOKENS = 8_192 as const;
 
@@ -76,8 +73,7 @@ const providerContent = (content: string, environment: Environment): string =>
 
 const requestOptions = (
   signal: AbortSignal | undefined,
-): { readonly signal: AbortSignal } | undefined =>
-  signal === undefined ? undefined : { signal };
+): { readonly signal: AbortSignal } | undefined => (signal === undefined ? undefined : { signal });
 
 const invalidOutput = (
   code:

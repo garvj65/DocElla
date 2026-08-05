@@ -1,7 +1,4 @@
-import type {
-  DiscoveredDocumentSchema,
-  GenericDocumentValues,
-} from "@docella/schemas";
+import type { DiscoveredDocumentSchema, GenericDocumentValues } from "@docella/schemas";
 import pino from "pino";
 import { describe, expect, it } from "vitest";
 
@@ -82,15 +79,16 @@ interface CapturedRequest {
   readonly max_completion_tokens: number;
   readonly messages: readonly { readonly content: string; readonly role: string }[];
   readonly response_format: {
-    readonly json_schema: { readonly name: string; readonly schema: unknown; readonly strict: boolean };
+    readonly json_schema: {
+      readonly name: string;
+      readonly schema: unknown;
+      readonly strict: boolean;
+    };
     readonly type: string;
   };
 }
 
-const createClient = (
-  contents: readonly string[],
-  captured: CapturedRequest[],
-): GroqChatClient => {
+const createClient = (contents: readonly string[], captured: CapturedRequest[]): GroqChatClient => {
   let index = 0;
   return {
     chat: {
