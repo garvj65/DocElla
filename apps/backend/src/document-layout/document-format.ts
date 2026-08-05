@@ -316,7 +316,7 @@ export const validateDocumentInput = (input: {
   const mediaType = input.mediaType.toLocaleLowerCase().split(";", 1)[0]?.trim() ?? "";
   const format = formats.find((candidate) => candidate.extensions.includes(extension));
 
-  if (format === undefined || !format.mediaTypes.includes(mediaType)) {
+  if (!format?.mediaTypes.includes(mediaType)) {
     throw unsupportedFormat();
   }
   if (!format.validateSignature(input.bytes)) {

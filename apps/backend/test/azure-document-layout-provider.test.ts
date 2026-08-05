@@ -25,7 +25,7 @@ const expectAppErrorCode = async (operation: Promise<unknown>, code: string): Pr
 
 describe("createAzureDocumentLayoutProvider", () => {
   it("submits bytes, polls the same Azure origin, and normalizes layout evidence", async () => {
-    const calls: Array<{ readonly init?: RequestInit; readonly url: string }> = [];
+    const calls: { readonly init?: RequestInit; readonly url: string }[] = [];
     const fetchImpl: typeof fetch = async (input, init) => {
       const url = String(input);
       calls.push(init === undefined ? { url } : { init, url });

@@ -416,8 +416,12 @@ const createRequestSignal = (
   timeoutMs: number,
 ): { readonly cleanup: () => void; readonly signal: AbortSignal } => {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(timeoutError()), timeoutMs);
-  const onAbort = (): void => controller.abort(callerSignal?.reason);
+  const timeout = setTimeout(() => {
+    controller.abort(timeoutError());
+  }, timeoutMs);
+  const onAbort = (): void => {
+    controller.abort(callerSignal?.reason);
+  };
   callerSignal?.addEventListener("abort", onAbort, { once: true });
 
   return {

@@ -92,10 +92,7 @@ export const createDocumentLayoutService = ({
       throw providerNotConfigured();
     }
 
-    return validateLayoutResult(
-      await (azureProvider as DocumentLayoutProvider).analyze(validatedRequest),
-      validatedRequest,
-    );
+    return validateLayoutResult(await azureProvider.analyze(validatedRequest), validatedRequest);
   },
 });
 
