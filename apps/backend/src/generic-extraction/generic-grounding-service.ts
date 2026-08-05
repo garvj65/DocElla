@@ -190,9 +190,8 @@ const missingReview = (): GenericValueReview => ({
   status: "missing",
 });
 
-const isScalarArray = (
-  value: GenericFieldValue,
-): value is readonly GenericScalarValue[] => Array.isArray(value);
+const isScalarArray = (value: GenericFieldValue): value is readonly GenericScalarValue[] =>
+  Array.isArray(value);
 
 const reviewValue = (
   field: DiscoveredField,
@@ -213,9 +212,7 @@ const reviewValue = (
       evidence: anchors,
       status: lowOcr ? ("low_ocr_confidence" as const) : ("verified" as const),
     };
-    return lowOcr
-      ? { ...review, message: "The source evidence has low OCR confidence." }
-      : review;
+    return lowOcr ? { ...review, message: "The source evidence has low OCR confidence." } : review;
   }
 
   return {
@@ -279,9 +276,7 @@ const reviewTable = (
       rowCount: rows.length,
       status: lowOcr ? ("low_ocr_confidence" as const) : ("verified" as const),
     };
-    return lowOcr
-      ? { ...review, message: "Some table evidence has low OCR confidence." }
-      : review;
+    return lowOcr ? { ...review, message: "Some table evidence has low OCR confidence." } : review;
   }
 
   return {
