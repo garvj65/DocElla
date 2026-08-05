@@ -10,11 +10,13 @@ import { AppError } from "./errors/app-error.js";
 import { ERROR_CODES } from "./errors/error-codes.js";
 import type { DocumentExtractionService } from "./extraction/extraction-types.js";
 import { createStaticFrontendRouter } from "./frontend/static-frontend.js";
+import type { GenericDocumentExtractionService } from "./generic-extraction/generic-extraction-types.js";
 import type { PdfGenerationService } from "./pdf-generation/pdf-generation-types.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { notFound } from "./middleware/not-found.js";
 import { requestContext } from "./middleware/request-context.js";
 import { createExtractRouter } from "./routes/extract.js";
+import { createGenericExtractRouter } from "./routes/extract-generic.js";
 import { createGeneratePdfRouter } from "./routes/generate-pdf.js";
 import { createHealthRouter } from "./routes/health.js";
 import { createSchemaRouter } from "./routes/schemas.js";
@@ -23,6 +25,7 @@ export interface CreateAppOptions {
   readonly environment: Environment;
   readonly extractionService: DocumentExtractionService;
   readonly frontendDistUrl?: URL;
+  readonly genericExtractionService?: GenericDocumentExtractionService;
   readonly pdfGenerationService: PdfGenerationService;
   readonly logger: Logger;
   readonly uploadLimits?: Partial<ExtractionLimits>;
@@ -32,6 +35,7 @@ export const createApp = ({
   environment,
   extractionService,
   frontendDistUrl,
+  genericExtractionService,
   pdfGenerationService,
   logger,
   uploadLimits,
@@ -70,6 +74,16 @@ export const createApp = ({
     "/api/generate-pdf",
     createGeneratePdfRouter({ environment, logger, pdfGenerationService }),
   );
+  if (genericExtractionService !== undefined) {
+    app.use(
+      "/api/documents/extract",
+      createGenericExtractRouter({
+        environment,
+        extractionService: genericExtractionService,
+        logger,
+      }),
+    );
+  }
   app.use(express.json({ limit: "1mb", strict: true, type: "application/json" }));
   app.use(
     "/api/extract",
