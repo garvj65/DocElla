@@ -230,7 +230,13 @@ const normalizePolygon = (
   width: number,
   height: number,
 ): readonly GenericBoundingPoint[] | undefined => {
-  if (!Array.isArray(value) || value.length < 8 || value.length % 2 !== 0 || width <= 0 || height <= 0) {
+  if (
+    !Array.isArray(value) ||
+    value.length < 8 ||
+    value.length % 2 !== 0 ||
+    width <= 0 ||
+    height <= 0
+  ) {
     return undefined;
   }
 
@@ -248,7 +254,9 @@ const normalizePolygon = (
   return points.length >= 4 && points.length <= 8 ? points : undefined;
 };
 
-const parsePages = (value: unknown): ReadonlyMap<number, { readonly height: number; readonly width: number }> => {
+const parsePages = (
+  value: unknown,
+): ReadonlyMap<number, { readonly height: number; readonly width: number }> => {
   const pages = new Map<number, { readonly height: number; readonly width: number }>();
   if (!Array.isArray(value)) return pages;
 
@@ -508,7 +516,8 @@ export const createAzureDocumentLayoutProvider = ({
           const parsed = await readBoundedJson(response);
           if (!isRecord(parsed)) throw invalidResponse();
           const operation = parsed as ProviderOperationResult;
-          const status = typeof operation.status === "string" ? operation.status.toLocaleLowerCase() : "";
+          const status =
+            typeof operation.status === "string" ? operation.status.toLocaleLowerCase() : "";
 
           if (status === "succeeded") return parseAnalyzeResult(operation, request.sourceFormat);
           if (status === "failed") {

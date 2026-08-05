@@ -113,7 +113,5 @@ export const createDocumentLayoutServiceFromEnvironment = (
           timeoutMs: environment.azureDocumentIntelligenceTimeoutMs ?? 90_000,
         });
 
-  return createDocumentLayoutService(
-    azureProvider === undefined ? {} : { azureProvider },
-  );
+  return createDocumentLayoutService(azureProvider === undefined ? {} : { azureProvider });
 };

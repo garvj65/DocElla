@@ -13,7 +13,9 @@ const expectInvalid = (source: NodeJS.ProcessEnv, field: string): void => {
     throw new Error("Expected environment validation to fail.");
   } catch (error) {
     expect(error).toBeInstanceOf(EnvironmentValidationError);
-    expect((error as EnvironmentValidationError).issues.map((issue) => issue.field)).toContain(field);
+    expect((error as EnvironmentValidationError).issues.map((issue) => issue.field)).toContain(
+      field,
+    );
   }
 };
 
@@ -30,8 +32,7 @@ describe("optional Azure Document Intelligence configuration", () => {
     expect(
       parseEnvironment({
         ...base,
-        AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT:
-          "https://docella.cognitiveservices.azure.com/",
+        AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: "https://docella.cognitiveservices.azure.com/",
         AZURE_DOCUMENT_INTELLIGENCE_KEY: "  azure-secret  ",
       }),
     ).toMatchObject({

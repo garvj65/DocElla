@@ -35,11 +35,10 @@ describe("createDocumentUploadMiddleware", () => {
   it("keeps a validated document in memory for downstream services", async () => {
     const response = await request(createUploadApp())
       .post("/upload")
-      .attach(
-        "file",
-        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-        { contentType: "image/png", filename: "scan.png" },
-      );
+      .attach("file", Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), {
+        contentType: "image/png",
+        filename: "scan.png",
+      });
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
@@ -54,12 +53,10 @@ describe("createDocumentUploadMiddleware", () => {
     expect((await request(createUploadApp()).post("/upload")).body.code).toBe("UPLOAD_REQUIRED");
     expect(
       (
-        await request(createUploadApp())
-          .post("/upload")
-          .attach("wrong", Buffer.from("%PDF-1.7"), {
-            contentType: "application/pdf",
-            filename: "sample.pdf",
-          })
+        await request(createUploadApp()).post("/upload").attach("wrong", Buffer.from("%PDF-1.7"), {
+          contentType: "application/pdf",
+          filename: "sample.pdf",
+        })
       ).body.code,
     ).toBe("UPLOAD_UNEXPECTED_FILE");
   });

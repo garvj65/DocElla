@@ -75,7 +75,12 @@ describe("validateDocumentInput", () => {
       Buffer.from([0, 0, 0, 20, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63]),
       "image",
     ],
-    ["sample.html", "text/html", Buffer.from("<!doctype html><html><body>Data</body></html>"), "html"],
+    [
+      "sample.html",
+      "text/html",
+      Buffer.from("<!doctype html><html><body>Data</body></html>"),
+      "html",
+    ],
   ])("accepts %s using content signatures", (filename, mediaType, bytes, sourceFormat) => {
     expect(validateDocumentInput({ bytes, filename, mediaType }).sourceFormat).toBe(sourceFormat);
   });
@@ -99,10 +104,13 @@ describe("validateDocumentInput", () => {
       "ppt/presentation.xml",
       "pptx",
     ],
-  ])("accepts structurally valid %s packages", (filename, mediaType, requiredEntry, sourceFormat) => {
-    const bytes = createOpenXmlPackage(["[Content_Types].xml", requiredEntry]);
-    expect(validateDocumentInput({ bytes, filename, mediaType }).sourceFormat).toBe(sourceFormat);
-  });
+  ])(
+    "accepts structurally valid %s packages",
+    (filename, mediaType, requiredEntry, sourceFormat) => {
+      const bytes = createOpenXmlPackage(["[Content_Types].xml", requiredEntry]);
+      expect(validateDocumentInput({ bytes, filename, mediaType }).sourceFormat).toBe(sourceFormat);
+    },
+  );
 
   it("rejects extension, MIME, and content mismatches", () => {
     expectCode(
@@ -172,11 +180,7 @@ describe("inspectOpenXmlPackage", () => {
     expectCode(
       () =>
         inspectOpenXmlPackage(
-          createOpenXmlPackage([
-            "[Content_Types].xml",
-            "word/document.xml",
-            "word/vbaProject.bin",
-          ]),
+          createOpenXmlPackage(["[Content_Types].xml", "word/document.xml", "word/vbaProject.bin"]),
         ),
       ERROR_CODES.DOCUMENT_FORMAT_UNSUPPORTED,
     );

@@ -55,9 +55,7 @@ const hasHeifSignature = (bytes: Uint8Array): boolean => {
   }
 
   const brand = Buffer.from(bytes.subarray(8, 12)).toString("ascii");
-  return new Set(["heic", "heix", "hevc", "hevx", "heim", "heis", "mif1", "msf1"]).has(
-    brand,
-  );
+  return new Set(["heic", "heix", "hevc", "hevx", "heim", "heis", "mif1", "msf1"]).has(brand);
 };
 
 const decodeUtf8 = (bytes: Uint8Array): string | undefined => {
@@ -78,7 +76,11 @@ const hasHtmlSignature = (bytes: Uint8Array): boolean => {
     return false;
   }
 
-  const start = decoded.replace(/^\uFEFF/u, "").trimStart().slice(0, 4_096).toLocaleLowerCase();
+  const start = decoded
+    .replace(/^\uFEFF/u, "")
+    .trimStart()
+    .slice(0, 4_096)
+    .toLocaleLowerCase();
   return (
     start.startsWith("<!doctype html") ||
     start.startsWith("<html") ||
@@ -92,8 +94,15 @@ const findEndOfCentralDirectory = (bytes: Uint8Array): number => {
     bytes.length - ZIP_MIN_END_OF_CENTRAL_DIRECTORY_BYTES - ZIP_MAX_COMMENT_BYTES,
   );
 
-  for (let offset = bytes.length - ZIP_MIN_END_OF_CENTRAL_DIRECTORY_BYTES; offset >= minimumOffset; offset -= 1) {
-    if (Buffer.from(bytes.buffer, bytes.byteOffset + offset, 4).readUInt32LE(0) === ZIP_END_OF_CENTRAL_DIRECTORY) {
+  for (
+    let offset = bytes.length - ZIP_MIN_END_OF_CENTRAL_DIRECTORY_BYTES;
+    offset >= minimumOffset;
+    offset -= 1
+  ) {
+    if (
+      Buffer.from(bytes.buffer, bytes.byteOffset + offset, 4).readUInt32LE(0) ===
+      ZIP_END_OF_CENTRAL_DIRECTORY
+    ) {
       return offset;
     }
   }
@@ -124,7 +133,11 @@ export const inspectOpenXmlPackage = (bytes: Uint8Array): OpenXmlPackageInfo => 
     throw invalidSignature();
   }
 
-  const endRecord = Buffer.from(bytes.buffer, bytes.byteOffset + endOffset, bytes.length - endOffset);
+  const endRecord = Buffer.from(
+    bytes.buffer,
+    bytes.byteOffset + endOffset,
+    bytes.length - endOffset,
+  );
   const entryCount = endRecord.readUInt16LE(10);
   const centralDirectorySize = endRecord.readUInt32LE(12);
   const centralDirectoryOffset = endRecord.readUInt32LE(16);
@@ -174,24 +187,30 @@ export const inspectOpenXmlPackage = (bytes: Uint8Array): OpenXmlPackageInfo => 
     offset = nextOffset;
   }
 
-  if (entryNames.has("word/vbaProject.bin") || entryNames.has("xl/vbaProject.bin") || entryNames.has("ppt/vbaProject.bin")) {
+  if (
+    entryNames.has("word/vbaProject.bin") ||
+    entryNames.has("xl/vbaProject.bin") ||
+    entryNames.has("ppt/vbaProject.bin")
+  ) {
     throw unsupportedFormat();
   }
 
   return { entryNames };
 };
 
-const openXmlValidator = (requiredEntry: string) => (bytes: Uint8Array): boolean => {
-  try {
-    const packageInfo = inspectOpenXmlPackage(bytes);
-    return (
-      packageInfo.entryNames.has("[Content_Types].xml") &&
-      packageInfo.entryNames.has(requiredEntry)
-    );
-  } catch {
-    return false;
-  }
-};
+const openXmlValidator =
+  (requiredEntry: string) =>
+  (bytes: Uint8Array): boolean => {
+    try {
+      const packageInfo = inspectOpenXmlPackage(bytes);
+      return (
+        packageInfo.entryNames.has("[Content_Types].xml") &&
+        packageInfo.entryNames.has(requiredEntry)
+      );
+    } catch {
+      return false;
+    }
+  };
 
 const formats: readonly FormatDefinition[] = [
   {
