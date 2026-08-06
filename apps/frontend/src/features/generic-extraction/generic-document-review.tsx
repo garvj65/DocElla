@@ -25,29 +25,36 @@ interface MutableDocumentValues {
   readonly tables: Record<string, MutableTableRow[]>;
 }
 
-const cloneValues = (values: GenericDocumentValues): MutableDocumentValues => ({
-  fields: Object.fromEntries(
-    Object.entries(values.fields).map(([key, value]) => [
-      key,
-      Array.isArray(value) ? [...value] : value,
-    ]),
-  ),
-  tables: Object.fromEntries(
-    Object.entries(values.tables).map(([key, rows]) => [key, rows.map((row) => ({ ...row }))]),
-  ),
-});
+const isReadonlyScalarArray = (
+  value: GenericFieldValue,
+): value is readonly GenericScalarValue[] => Array.isArray(value);
+
+const isMutableScalarArray = (
+  value: MutableFieldValue,
+): value is GenericScalarValue[] => Array.isArray(value);
+
+const cloneValues = (values: GenericDocumentValues): MutableDocumentValues => {
+  const fields: Record<string, MutableFieldValue> = {};
+  const tables: Record<string, MutableTableRow[]> = {};
+
+  for (const [fieldId, value] of Object.entries(values.fields)) {
+    fields[fieldId] = isReadonlyScalarArray(value) ? [...value] : value;
+  }
+  for (const [tableId, rows] of Object.entries(values.tables)) {
+    tables[tableId] = rows.map((row) => ({ ...row }));
+  }
+
+  return { fields, tables };
+};
 
 const toReadonlyValues = (values: MutableDocumentValues): GenericDocumentValues => ({
   fields: values.fields,
   tables: values.tables,
 });
 
-const isScalarArray = (value: MutableFieldValue): value is GenericScalarValue[] =>
-  Array.isArray(value);
-
 const fieldTextValue = (value: MutableFieldValue): string => {
   if (value === null || typeof value === "boolean") return "";
-  return Array.isArray(value) ? value.join("\n") : String(value);
+  return isMutableScalarArray(value) ? value.map(String).join("\n") : String(value);
 };
 
 const tableTextValue = (value: GenericTableCellValue | undefined): string =>
@@ -60,15 +67,54 @@ const parseNumber = (value: string): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const parseRepeatableItem = (field: DiscoveredField, value: string): GenericScalarValue => {
+  switch (field.valueType) {
+    case "number":
+    case "currency": {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : value;
+    }
+    case "boolean": {
+      const normalized = value.toLocaleLowerCase();
+      if (["true", "yes", "1"].includes(normalized)) return true;
+      if (["false", "no", "0"].includes(normalized)) return false;
+      return value;
+    }
+    case "text":
+    case "long_text":
+    case "email":
+    case "phone":
+    case "address":
+    case "identifier":
+    case "date":
+    case "select":
+      return value;
+  }
+};
+
+export const parseRepeatableFieldText = (
+  field: DiscoveredField,
+  input: string,
+): MutableFieldValue => {
+  const items = input
+    .split("\n")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
+    .map((item) => parseRepeatableItem(field, item));
+  return items.length === 0 ? null : items;
+};
+
 const inputClass =
   "min-h-10 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100 disabled:bg-slate-50";
 
 function ScalarFieldInput({
   field,
+  id,
   onChange,
   value,
 }: {
   readonly field: DiscoveredField;
+  readonly id: string;
   readonly onChange: (value: MutableFieldValue) => void;
   readonly value: MutableFieldValue;
 }) {
@@ -76,15 +122,12 @@ function ScalarFieldInput({
     return (
       <textarea
         className={`${inputClass} min-h-24 resize-y`}
+        id={id}
         onChange={(event) => {
-          const values = event.target.value
-            .split("\n")
-            .map((item) => item.trim())
-            .filter(Boolean);
-          onChange(values.length === 0 ? null : values);
+          onChange(parseRepeatableFieldText(field, event.target.value));
         }}
         placeholder="One value per line"
-        value={isScalarArray(value) ? value.join("\n") : ""}
+        value={isMutableScalarArray(value) ? value.map(String).join("\n") : ""}
       />
     );
   }
@@ -93,6 +136,7 @@ function ScalarFieldInput({
     return (
       <select
         className={inputClass}
+        id={id}
         onChange={(event) => {
           onChange(event.target.value.length === 0 ? null : event.target.value === "true");
         }}
@@ -109,6 +153,7 @@ function ScalarFieldInput({
     return (
       <select
         className={inputClass}
+        id={id}
         onChange={(event) => {
           onChange(event.target.value || null);
         }}
@@ -128,6 +173,7 @@ function ScalarFieldInput({
     return (
       <textarea
         className={`${inputClass} min-h-24 resize-y`}
+        id={id}
         onChange={(event) => {
           onChange(event.target.value.trim().length === 0 ? null : event.target.value);
         }}
@@ -144,11 +190,17 @@ function ScalarFieldInput({
         : field.valueType === "number" || field.valueType === "currency"
           ? "number"
           : "text";
+  const inputMode = field.valueType === "phone" ? ({ inputMode: "tel" } as const) : {};
+  const step =
+    field.valueType === "number" || field.valueType === "currency"
+      ? ({ step: "any" } as const)
+      : {};
 
   return (
     <input
       className={inputClass}
-      inputMode={field.valueType === "phone" ? "tel" : undefined}
+      id={id}
+      {...inputMode}
       onChange={(event) => {
         onChange(
           field.valueType === "number" || field.valueType === "currency"
@@ -158,7 +210,7 @@ function ScalarFieldInput({
               : event.target.value,
         );
       }}
-      step={field.valueType === "number" || field.valueType === "currency" ? "any" : undefined}
+      {...step}
       type={inputType}
       value={fieldTextValue(value)}
     />
@@ -192,6 +244,7 @@ function TableCellInput({
   }
 
   const numeric = column.valueType === "number" || column.valueType === "currency";
+  const step = numeric ? ({ step: "any" } as const) : {};
   return (
     <input
       aria-label={column.label}
@@ -205,7 +258,7 @@ function TableCellInput({
               : event.target.value,
         );
       }}
-      step={numeric ? "any" : undefined}
+      {...step}
       type={column.valueType === "date" ? "date" : numeric ? "number" : "text"}
       value={tableTextValue(value)}
     />
@@ -235,10 +288,12 @@ export function GenericDocumentReview({
   readonly result: GenericDocumentExtractionResult;
 }) {
   const initialValues = useMemo(() => cloneValues(result.values), [result.values]);
-  const [values, setValues] = useState<MutableDocumentValues>(() => cloneValues(result.values));
-  const [selectedEvidence, setSelectedEvidence] = useState<GenericEvidenceAnchor | undefined>(
-    undefined,
+  const submissionSchema = useMemo(
+    () => buildGenericDocumentSubmissionSchema(result.schema),
+    [result.schema],
   );
+  const [values, setValues] = useState<MutableDocumentValues>(() => cloneValues(result.values));
+  const [selectedEvidence, setSelectedEvidence] = useState<GenericEvidenceAnchor | undefined>();
   const [validationState, setValidationState] = useState<"idle" | "valid" | "invalid">("idle");
   const fieldCount = result.schema.sections.reduce(
     (total, section) => total + section.fields.length,
@@ -298,11 +353,20 @@ export function GenericDocumentReview({
     setValidationState("idle");
   };
 
-  const validate = (): void => {
-    const parsed = buildGenericDocumentSubmissionSchema(result.schema).safeParse(
-      toReadonlyValues(values),
-    );
+  const validate = (): boolean => {
+    const parsed = submissionSchema.safeParse(toReadonlyValues(values));
     setValidationState(parsed.success ? "valid" : "invalid");
+    return parsed.success;
+  };
+
+  const exportReviewedValues = (): void => {
+    const parsed = submissionSchema.safeParse(toReadonlyValues(values));
+    if (!parsed.success) {
+      setValidationState("invalid");
+      return;
+    }
+    setValidationState("valid");
+    exportGenericDocumentJson(result.schema, parsed.data);
   };
 
   return (
@@ -328,17 +392,17 @@ export function GenericDocumentReview({
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Grounded</p>
               <p className="text-lg font-semibold text-slate-950">{confidencePercent}%</p>
             </div>
-            <Button type="button" variant="secondary" onClick={validate}>
-              <Check aria-hidden="true" className="h-4 w-4" />
-              Validate
-            </Button>
             <Button
               type="button"
               variant="secondary"
               onClick={() => {
-                exportGenericDocumentJson(result.schema, toReadonlyValues(values));
+                validate();
               }}
             >
+              <Check aria-hidden="true" className="h-4 w-4" />
+              Validate
+            </Button>
+            <Button type="button" variant="secondary" onClick={exportReviewedValues}>
               <Download aria-hidden="true" className="h-4 w-4" />
               Export JSON
             </Button>
@@ -390,6 +454,7 @@ export function GenericDocumentReview({
                   const initial = initialValues.fields[field.id] ?? null;
                   const edited = JSON.stringify(current) !== JSON.stringify(initial);
                   const evidence = review?.evidence[0];
+                  const inputId = `generic-field-${field.id}`;
                   return (
                     <div
                       className={
@@ -400,16 +465,15 @@ export function GenericDocumentReview({
                       key={field.id}
                     >
                       <div className="mb-1.5 flex items-start justify-between gap-3">
-                        <label className="text-sm font-medium text-slate-800">
+                        <label className="text-sm font-medium text-slate-800" htmlFor={inputId}>
                           {field.label}
                           {field.required ? <span className="ml-1 text-red-600">*</span> : null}
                         </label>
                         <button
+                          aria-label={`Inspect evidence for ${field.label}`}
                           className="rounded outline-none focus:ring-2 focus:ring-teal-200"
                           disabled={evidence === undefined}
-                          title={
-                            evidence === undefined ? "No source evidence" : locationLabel(evidence)
-                          }
+                          title={evidence === undefined ? "No source evidence" : locationLabel(evidence)}
                           type="button"
                           onClick={() => {
                             setSelectedEvidence(evidence);
@@ -420,6 +484,7 @@ export function GenericDocumentReview({
                       </div>
                       <ScalarFieldInput
                         field={field}
+                        id={inputId}
                         onChange={(value) => {
                           updateField(field.id, value);
                         }}
@@ -437,8 +502,10 @@ export function GenericDocumentReview({
 
           {result.schema.tables.map((table) => {
             const rows = values.tables[table.id] ?? [];
+            const initialRows = initialValues.tables[table.id] ?? [];
             const review = result.review.tables[table.id];
             const evidence = review?.evidence[0];
+            const edited = JSON.stringify(rows) !== JSON.stringify(initialRows);
             return (
               <section className="enterprise-panel overflow-hidden" key={table.id}>
                 <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
@@ -449,6 +516,7 @@ export function GenericDocumentReview({
                     </p>
                   </div>
                   <button
+                    aria-label={`Inspect evidence for ${table.label}`}
                     className="rounded outline-none focus:ring-2 focus:ring-teal-200"
                     disabled={evidence === undefined}
                     title={evidence === undefined ? "No source evidence" : locationLabel(evidence)}
@@ -457,7 +525,7 @@ export function GenericDocumentReview({
                       setSelectedEvidence(evidence);
                     }}
                   >
-                    <ReviewStatusChip status={review?.status ?? "missing"} />
+                    <ReviewStatusChip edited={edited} status={review?.status ?? "missing"} />
                   </button>
                 </div>
                 <div className="overflow-x-auto">
@@ -505,9 +573,7 @@ export function GenericDocumentReview({
                     </tbody>
                   </table>
                   {rows.length === 0 ? (
-                    <p className="px-4 py-6 text-center text-sm text-slate-500">
-                      No rows extracted.
-                    </p>
+                    <p className="px-4 py-6 text-center text-sm text-slate-500">No rows extracted.</p>
                   ) : null}
                 </div>
                 <div className="border-t border-slate-200 px-4 py-3">
