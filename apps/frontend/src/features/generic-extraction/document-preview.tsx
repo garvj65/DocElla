@@ -2,6 +2,8 @@ import type { GenericEvidenceAnchor } from "@docella/schemas/public";
 import { FileText, Image as ImageIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+const browserPreviewableImages = new Set([".jpg", ".jpeg", ".png", ".bmp"]);
+
 const extensionOf = (filename: string): string => {
   const dot = filename.lastIndexOf(".");
   return dot < 0 ? "" : filename.slice(dot).toLocaleLowerCase();
@@ -33,9 +35,7 @@ export function DocumentPreview({
   const extension = extensionOf(file.name);
   const previewKind = useMemo(() => {
     if (extension === ".pdf") return "pdf";
-    if ([".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".heic", ".heif"].includes(extension)) {
-      return "image";
-    }
+    if (browserPreviewableImages.has(extension)) return "image";
     return "summary";
   }, [extension]);
 
@@ -101,7 +101,9 @@ export function DocumentPreview({
             Selected evidence
           </h3>
           {evidence === undefined ? null : (
-            <span className="text-xs font-medium text-slate-600">{evidenceLocation(evidence)}</span>
+            <span className="text-xs font-medium text-slate-600">
+              {evidenceLocation(evidence)}
+            </span>
           )}
         </div>
         {evidence === undefined ? (
