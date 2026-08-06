@@ -4,24 +4,25 @@ on:
   pull_request:
     branches:
       - main
+  push:
+    branches:
+      - main
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  fix:
-    name: Apply PR4 Type Corrections
+  checks:
+    name: Repository Gates
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out PR branch
+      - name: Check out repository
         uses: actions/checkout@v4
-        with:
-          ref: agent/pr4-enterprise-review-workspace
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -29,101 +30,62 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Apply focused corrections
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build and verify release artifacts
+        run: npm run verify:release
+
+  container:
+    name: Production Container
+    needs: checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build production image
+        run: docker build --tag docella:ci .
+
+      - name: Start production image
         run: |
-          cat > apps/frontend/src/features/generic-extraction/generic-review-values.ts <<'EOF'
-          import type { DiscoveredField, GenericScalarValue } from "@docella/schemas/public";
+          docker run --detach --name docella-ci --publish 3001:3001 \
+            --env NODE_ENV=production \
+            --env PORT=3001 \
+            --env FRONTEND_ORIGIN=http://localhost:3001 \
+            --env GROQ_API_KEY=ci-not-used \
+            --env TRUST_PROXY_HOPS=0 \
+            --env SHUTDOWN_TIMEOUT_MS=5000 \
+            docella:ci
 
-          const parseRepeatableItem = (
-            field: DiscoveredField,
-            value: string,
-          ): GenericScalarValue => {
-            switch (field.valueType) {
-              case "number":
-              case "currency": {
-                const parsed = Number(value);
-                return Number.isFinite(parsed) ? parsed : value;
-              }
-              case "boolean": {
-                const normalized = value.toLocaleLowerCase();
-                if (["true", "yes", "1"].includes(normalized)) return true;
-                if (["false", "no", "0"].includes(normalized)) return false;
-                return value;
-              }
-              case "text":
-              case "long_text":
-              case "email":
-              case "phone":
-              case "address":
-              case "identifier":
-              case "date":
-              case "select":
-                return value;
-            }
-          };
+      - name: Verify container health and frontend
+        run: |
+          for attempt in {1..30}; do
+            if node -e "fetch('http://127.0.0.1:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; then
+              break
+            fi
+            if [ "$attempt" = "30" ]; then
+              docker logs docella-ci
+              exit 1
+            fi
+            sleep 1
+          done
+          node -e "Promise.all([fetch('http://127.0.0.1:3001/'), fetch('http://127.0.0.1:3001/api/schemas')]).then(async ([home, schemas]) => { if (!home.ok || !schemas.ok || !(await home.text()).includes('DocElla')) process.exit(1); }).catch(() => process.exit(1))"
+          test "$(docker exec docella-ci id -u)" != "0"
 
-          export const parseRepeatableFieldText = (
-            field: DiscoveredField,
-            input: string,
-          ): GenericScalarValue[] | null => {
-            const items = input
-              .split("\n")
-              .map((item) => item.trim())
-              .filter((item) => item.length > 0)
-              .map((item) => parseRepeatableItem(field, item));
-            return items.length === 0 ? null : items;
-          };
-          EOF
-
-          python - <<'PY'
-          from pathlib import Path
-
-          review = Path("apps/frontend/src/features/generic-extraction/generic-document-review.tsx")
-          text = review.read_text()
-          block_start = text.index("const parseRepeatableItem =")
-          block_end = text.index("const inputClass =", block_start)
-          text = text[:block_start] + text[block_end:]
-          text = text.replace(
-              'import { exportGenericDocumentJson } from "./export-generic-json";\n',
-              'import { exportGenericDocumentJson } from "./export-generic-json";\nimport { parseRepeatableFieldText } from "./generic-review-values";\n',
-          )
-          text = text.replace(
-              '<DocumentPreview evidence={selectedEvidence} file={file} />',
-              '<DocumentPreview\n            {...(selectedEvidence === undefined ? {} : { evidence: selectedEvidence })}\n            file={file}\n          />',
-          )
-          review.write_text(text)
-
-          workspace = Path("apps/frontend/src/features/generic-extraction/generic-extraction-workspace.tsx")
-          text = workspace.read_text().replace(
-              "const controllerRef = useRef<AbortController | undefined>();",
-              "const controllerRef = useRef<AbortController | undefined>(undefined);",
-          )
-          workspace.write_text(text)
-
-          test = Path("apps/frontend/test/generic-document-review.test.tsx")
-          text = test.read_text().replace(
-              'import {\n  GenericDocumentReview,\n  parseRepeatableFieldText,\n} from "../src/features/generic-extraction/generic-document-review";',
-              'import { GenericDocumentReview } from "../src/features/generic-extraction/generic-document-review";\nimport { parseRepeatableFieldText } from "../src/features/generic-extraction/generic-review-values";',
-          )
-          test.write_text(text)
-          PY
-
-          npm ci
-          npx prettier \
-            apps/frontend/src/features/generic-extraction/generic-document-review.tsx \
-            apps/frontend/src/features/generic-extraction/generic-extraction-workspace.tsx \
-            apps/frontend/src/features/generic-extraction/generic-review-values.ts \
-            apps/frontend/test/generic-document-review.test.tsx \
-            --write
-          npm run build -w @docella/schemas
-          npm run typecheck -w @docella/frontend
-          npx eslint \
-            apps/frontend/src/features/generic-extraction/generic-document-review.tsx \
-            apps/frontend/src/features/generic-extraction/generic-extraction-workspace.tsx \
-            apps/frontend/src/features/generic-extraction/generic-review-values.ts \
-            apps/frontend/test/generic-document-review.test.tsx
-          git add apps/frontend/src/features/generic-extraction apps/frontend/test/generic-document-review.test.tsx
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git commit -m "fix: resolve enterprise workspace type findings"
-          git push origin HEAD:agent/pr4-enterprise-review-workspace
+      - name: Stop production image
+        if: always()
+        run: docker rm --force docella-ci || true
