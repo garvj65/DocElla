@@ -27,11 +27,6 @@ describe("generic extraction workspace", () => {
   });
 
   it("validates a file, submits it explicitly, and renders the structured review", async () => {
-    vi.stubGlobal("URL", {
-      ...URL,
-      createObjectURL: vi.fn(() => "blob:preview"),
-      revokeObjectURL: vi.fn(),
-    });
     const api: GenericDocumentApi = {
       extract: vi.fn(() => Promise.resolve(genericDocumentResult)),
     };
