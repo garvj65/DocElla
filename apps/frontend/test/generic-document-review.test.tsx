@@ -43,25 +43,29 @@ describe("generic document review", () => {
       />,
     );
 
-    expect(screen.getByLabelText(/Invoice number/i)).toHaveValue("INV-1001");
-    expect(screen.getByLabelText(/Amounts/i)).toHaveValue("100\n25.5");
+    const invoiceNumberInput = screen.getByRole("textbox", { name: /Invoice number/i });
+    const amountsInput = screen.getByRole("textbox", { name: /Amounts/i });
+    const flagsInput = screen.getByRole("textbox", { name: /Flags/i });
+
+    expect(invoiceNumberInput).toHaveValue("INV-1001");
+    expect(amountsInput).toHaveValue("100\n25.5");
 
     await userEvent.click(
       screen.getByRole("button", { name: "Inspect evidence for Invoice number" }),
     );
     expect(screen.getByText(/Invoice INV-1001 priority approved/i)).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText(/Amounts/i), { target: { value: "10\n20.5" } });
-    fireEvent.change(screen.getByLabelText(/Flags/i), { target: { value: "yes\nno" } });
+    fireEvent.change(amountsInput, { target: { value: "10\n20.5" } });
+    fireEvent.change(flagsInput, { target: { value: "yes\nno" } });
     await userEvent.click(screen.getByRole("button", { name: "Validate" }));
     expect(screen.getByText(/match the discovered schema/i)).toBeInTheDocument();
 
-    await userEvent.clear(screen.getByLabelText(/Invoice number/i));
+    await userEvent.clear(invoiceNumberInput);
     await userEvent.click(screen.getByRole("button", { name: "Export JSON" }));
     expect(screen.getByText(/need attention/i)).toBeInTheDocument();
     expect(createObjectUrl).not.toHaveBeenCalled();
 
-    await userEvent.type(screen.getByLabelText(/Invoice number/i), "INV-2002");
+    await userEvent.type(invoiceNumberInput, "INV-2002");
     await userEvent.click(screen.getByRole("button", { name: "Export JSON" }));
     expect(createObjectUrl).toHaveBeenCalledTimes(1);
     expect(revokeObjectUrl).toHaveBeenCalledWith("blob:generic-export");
