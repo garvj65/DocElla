@@ -35,7 +35,7 @@ describe("App shell", () => {
     renderWithProviders(<App environment={{ apiBaseUrl: "" }} />);
 
     expect(screen.getByText("DocElla")).toBeInTheDocument();
-    expect(screen.getByText(/Memory-only document processing/i)).toBeInTheDocument();
+    expect(screen.getByText(/processed without persistent storage/i)).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Extract" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Template review" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Create PDF" })).toBeInTheDocument();
