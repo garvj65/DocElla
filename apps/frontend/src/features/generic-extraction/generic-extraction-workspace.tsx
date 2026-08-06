@@ -5,10 +5,7 @@ import { FrontendApiError } from "../../api/api-error";
 import type { GenericDocumentApi } from "../../api/generic-document-api";
 import { Button } from "../../components/ui/button";
 import { GenericDocumentReview } from "./generic-document-review";
-import {
-  GENERIC_DOCUMENT_ACCEPT,
-  validateGenericDocumentFile,
-} from "./generic-document-file";
+import { GENERIC_DOCUMENT_ACCEPT, validateGenericDocumentFile } from "./generic-document-file";
 
 const extractionMessage = (error: FrontendApiError): string => {
   switch (error.code) {
@@ -46,7 +43,9 @@ export function GenericExtractionWorkspace({ api }: { readonly api: GenericDocum
   const [state, setState] = useState<"idle" | "analyzing" | "error" | "complete">("idle");
   const [error, setError] = useState("");
   const [requestId, setRequestId] = useState<string | undefined>();
-  const [result, setResult] = useState<Awaited<ReturnType<GenericDocumentApi["extract"]>> | undefined>();
+  const [result, setResult] = useState<
+    Awaited<ReturnType<GenericDocumentApi["extract"]>> | undefined
+  >();
   const inputRef = useRef<HTMLInputElement>(null);
   const validationIdRef = useRef(0);
   const extractionIdRef = useRef(0);
@@ -158,13 +157,17 @@ export function GenericExtractionWorkspace({ api }: { readonly api: GenericDocum
           Extract structured data from any business document
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-          Upload a digital or scanned PDF, image, Office document, or HTML file. DocElla discovers its
-          structure, extracts values and tables, and grounds them for review.
+          Upload a digital or scanned PDF, image, Office document, or HTML file. DocElla discovers
+          its structure, extracts values and tables, and grounds them for review.
         </p>
         <ol aria-label="Extraction progress" className="mt-5 grid gap-2 sm:grid-cols-3">
           {[
             ["1", "Upload", file === undefined ? "current" : "complete"],
-            ["2", "Analyze", state === "analyzing" ? "current" : result === undefined ? "pending" : "complete"],
+            [
+              "2",
+              "Analyze",
+              state === "analyzing" ? "current" : result === undefined ? "pending" : "complete",
+            ],
             ["3", "Review", result === undefined ? "pending" : "current"],
           ].map(([number, label, status]) => (
             <li
@@ -223,7 +226,10 @@ export function GenericExtractionWorkspace({ api }: { readonly api: GenericDocum
         ) : null}
 
         {fileError.length > 0 ? (
-          <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">
+          <div
+            className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
+            role="alert"
+          >
             {fileError}
           </div>
         ) : null}
@@ -282,7 +288,9 @@ export function GenericExtractionWorkspace({ api }: { readonly api: GenericDocum
             tabIndex={-1}
           >
             <p>{error}</p>
-            {requestId === undefined ? null : <p className="mt-1 text-xs">Request ID: {requestId}</p>}
+            {requestId === undefined ? null : (
+              <p className="mt-1 text-xs">Request ID: {requestId}</p>
+            )}
           </div>
         ) : null}
       </section>

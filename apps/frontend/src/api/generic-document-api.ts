@@ -47,9 +47,7 @@ const parseResult = (data: unknown, status: number): GenericDocumentExtractionRe
   return result.data;
 };
 
-export const createGenericDocumentApi = (
-  environment: FrontendEnvironment,
-): GenericDocumentApi => ({
+export const createGenericDocumentApi = (environment: FrontendEnvironment): GenericDocumentApi => ({
   async extract({ file, signal }) {
     const formData = new FormData();
     formData.append("file", file);

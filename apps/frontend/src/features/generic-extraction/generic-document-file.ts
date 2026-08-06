@@ -46,10 +46,7 @@ const signatureMatches = async (file: File, extension: string): Promise<boolean>
       return hasBytes(bytes, [0x42, 0x4d]);
     case ".tif":
     case ".tiff":
-      return (
-        hasBytes(bytes, [0x49, 0x49, 0x2a, 0x00]) ||
-        hasBytes(bytes, [0x4d, 0x4d, 0x00, 0x2a])
-      );
+      return hasBytes(bytes, [0x49, 0x49, 0x2a, 0x00]) || hasBytes(bytes, [0x4d, 0x4d, 0x00, 0x2a]);
     case ".heic":
     case ".heif":
       return bytes.length >= 12 && new TextDecoder().decode(bytes.slice(4, 8)) === "ftyp";

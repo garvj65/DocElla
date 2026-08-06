@@ -1,7 +1,4 @@
-import type {
-  DiscoveredDocumentSchema,
-  GenericDocumentValues,
-} from "@docella/schemas/public";
+import type { DiscoveredDocumentSchema, GenericDocumentValues } from "@docella/schemas/public";
 
 const safeFilename = (value: string): string => {
   const normalized = value

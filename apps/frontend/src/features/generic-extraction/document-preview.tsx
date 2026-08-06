@@ -99,9 +99,7 @@ export function DocumentPreview({
             Selected evidence
           </h3>
           {evidence === undefined ? null : (
-            <span className="text-xs font-medium text-slate-600">
-              {evidenceLocation(evidence)}
-            </span>
+            <span className="text-xs font-medium text-slate-600">{evidenceLocation(evidence)}</span>
           )}
         </div>
         {evidence === undefined ? (

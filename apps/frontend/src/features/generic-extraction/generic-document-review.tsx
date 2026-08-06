@@ -33,10 +33,7 @@ const cloneValues = (values: GenericDocumentValues): MutableDocumentValues => ({
     ]),
   ),
   tables: Object.fromEntries(
-    Object.entries(values.tables).map(([key, rows]) => [
-      key,
-      rows.map((row) => ({ ...row })),
-    ]),
+    Object.entries(values.tables).map(([key, rows]) => [key, rows.map((row) => ({ ...row }))]),
   ),
 });
 
@@ -97,9 +94,7 @@ function ScalarFieldInput({
       <select
         className={inputClass}
         onChange={(event) => {
-          onChange(
-            event.target.value.length === 0 ? null : event.target.value === "true",
-          );
+          onChange(event.target.value.length === 0 ? null : event.target.value === "true");
         }}
         value={value === true ? "true" : value === false ? "false" : ""}
       >
@@ -131,7 +126,9 @@ function ScalarFieldInput({
     return (
       <textarea
         className={`${inputClass} min-h-24 resize-y`}
-        onChange={(event) => onChange(event.target.value.trim().length === 0 ? null : event.target.value)}
+        onChange={(event) =>
+          onChange(event.target.value.trim().length === 0 ? null : event.target.value)
+        }
         value={fieldTextValue(value)}
       />
     );
@@ -241,7 +238,10 @@ export function GenericDocumentReview({
     undefined,
   );
   const [validationState, setValidationState] = useState<"idle" | "valid" | "invalid">("idle");
-  const fieldCount = result.schema.sections.reduce((total, section) => total + section.fields.length, 0);
+  const fieldCount = result.schema.sections.reduce(
+    (total, section) => total + section.fields.length,
+    0,
+  );
   const tableCount = result.schema.tables.length;
   const confidencePercent = Math.round(result.confidence * 100);
 
@@ -315,8 +315,10 @@ export function GenericDocumentReview({
               <ReviewStatusChip status={result.reviewRequired ? "needs_review" : "verified"} />
             </div>
             <p className="mt-1 text-sm text-slate-500">
-              {result.schema.documentTypeLabel} · {String(result.document.contentUnitCount)} {result.document.contentUnit}
-              {result.document.contentUnitCount === 1 ? "" : "s"} · {String(fieldCount)} fields · {String(tableCount)} tables
+              {result.schema.documentTypeLabel} · {String(result.document.contentUnitCount)}{" "}
+              {result.document.contentUnit}
+              {result.document.contentUnitCount === 1 ? "" : "s"} · {String(fieldCount)} fields ·{" "}
+              {String(tableCount)} tables
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -385,7 +387,14 @@ export function GenericDocumentReview({
                   const edited = JSON.stringify(current) !== JSON.stringify(initial);
                   const evidence = review?.evidence[0];
                   return (
-                    <div className={field.valueType === "long_text" || field.valueType === "address" ? "md:col-span-2" : ""} key={field.id}>
+                    <div
+                      className={
+                        field.valueType === "long_text" || field.valueType === "address"
+                          ? "md:col-span-2"
+                          : ""
+                      }
+                      key={field.id}
+                    >
                       <div className="mb-1.5 flex items-start justify-between gap-3">
                         <label className="text-sm font-medium text-slate-800">
                           {field.label}
@@ -394,7 +403,9 @@ export function GenericDocumentReview({
                         <button
                           className="rounded outline-none focus:ring-2 focus:ring-teal-200"
                           disabled={evidence === undefined}
-                          title={evidence === undefined ? "No source evidence" : locationLabel(evidence)}
+                          title={
+                            evidence === undefined ? "No source evidence" : locationLabel(evidence)
+                          }
                           type="button"
                           onClick={() => setSelectedEvidence(evidence)}
                         >
@@ -482,7 +493,9 @@ export function GenericDocumentReview({
                     </tbody>
                   </table>
                   {rows.length === 0 ? (
-                    <p className="px-4 py-6 text-center text-sm text-slate-500">No rows extracted.</p>
+                    <p className="px-4 py-6 text-center text-sm text-slate-500">
+                      No rows extracted.
+                    </p>
                   ) : null}
                 </div>
                 <div className="border-t border-slate-200 px-4 py-3">
