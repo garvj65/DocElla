@@ -1,36 +1,48 @@
 # DocElla
 
-DocElla 1.0.0 is a schema-driven PDF workflow application with two complete directions:
+DocElla 1.0.0 is a document-intelligence workspace with three end-to-end workflows:
 
-- Upload a text-based PDF, extract structured values, review grounding, edit the values, and
-  generate a reviewed PDF.
-- Complete a dynamic web form and generate either an editable or flattened PDF.
+- **Extract:** upload a supported business document, discover its structure, extract fields and
+  tables, inspect grounded evidence, edit the result, validate it, and export reviewed JSON.
+- **Template review:** extract a text-based PDF into a registered fixed schema, review and edit its
+  values, and generate a reviewed PDF.
+- **Create PDF:** complete a schema-driven web form and generate an editable or flattened PDF from a
+  trusted server-side template.
 
-The application is a TypeScript monorepo with a React/Vite frontend, Express backend, shared Zod
-contracts, Groq structured extraction, deterministic local grounding, PDF.js text extraction, and
-pdf-lib generation from trusted AcroForm templates.
+The project is a TypeScript monorepo with a React/Vite frontend, Express backend, shared Zod
+contracts, Groq strict structured outputs, deterministic local grounding, PDF.js text extraction,
+optional Azure Document Intelligence OCR/layout, and pdf-lib PDF generation.
 
-## Current v1 scope
+## Current scope
 
-Supported document schemas:
+### Arbitrary-document extraction
+
+The generic extraction boundary accepts validated files from these families:
+
+- Digital and scanned PDF
+- JPEG, PNG, BMP, TIFF, and HEIF images
+- DOCX
+- XLSX
+- PPTX
+- HTML
+
+Digital text PDFs use the local PDF.js path. Scanned PDFs, images, Office documents, and HTML require
+optional Azure Document Intelligence credentials.
+
+The generic pipeline discovers bounded sections, scalar fields, repeatable values, and flat tables.
+It then performs a second strict extraction pass, validates the values locally, and computes evidence,
+confidence, warnings, and review states without trusting model-supplied grounding.
+
+### Fixed schemas and PDF templates
+
+Registered schemas:
 
 - Job Application
 - Basic Invoice
 
-Supported public field kinds:
-
-- Text
-- Text area
-- Email
-- Phone
-- ISO date
-- Number
-- Currency
-- Select
-
-Each schema registers a trusted server-side PDF template. Clients select only public schema and
-template IDs; they cannot provide filesystem paths, PDF mappings, template bytes, output paths, or
-output filenames.
+Each schema has a trusted server-side AcroForm template. Clients submit only public schema and
+template identifiers; they cannot provide filesystem paths, field mappings, template bytes, output
+paths, or output filenames.
 
 ## Architecture
 
@@ -42,19 +54,21 @@ Express production service
    |-- compiled Vite frontend
    |-- GET /api/health
    |-- GET /api/schemas
+   |-- POST /api/documents/extract
+   |      validation -> PDF.js or OCR/layout -> schema discovery
+   |      -> strict value extraction -> local validation -> evidence grounding
    |-- POST /api/extract
-   |      PDF.js -> Groq structured output -> Zod validation -> local grounding
-   |
+   |      fixed schema -> PDF.js -> Groq -> local grounding
    `-- POST /api/generate-pdf
           shared validation -> trusted template -> pdf-lib -> PDF download
 ```
 
-Development runs Vite and Express separately. Production uses one same-origin Express process that
-serves the compiled frontend before falling back to the JSON API error handler.
+Development runs Vite and Express separately. Production uses one same-origin Express process for the
+compiled frontend and API.
 
 ## Prerequisites
 
-- Node.js 24 LTS
+- Node.js 24
 - npm
 - Git
 - Docker for production-image verification
@@ -63,7 +77,7 @@ serves the compiled frontend before falling back to the JSON API error handler.
 
 ```powershell
 git clone https://github.com/garvj65/DocElla.git
-cd DocElla
+Set-Location .\DocElla
 npm ci
 Copy-Item .env.example .env
 ```
@@ -74,9 +88,16 @@ Set a legitimate backend-only Groq key in `.env`:
 GROQ_API_KEY=your-secret-key
 ```
 
-Never place this key in a `VITE_*` variable or commit it to the repository.
+For scanned PDFs, images, Office documents, and HTML, configure both optional Azure values:
 
-Start both applications:
+```env
+AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://your-resource.cognitiveservices.azure.com
+AZURE_DOCUMENT_INTELLIGENCE_KEY=your-backend-secret
+```
+
+Never place provider keys in `VITE_*` variables or commit `.env`.
+
+Start development:
 
 ```powershell
 npm run dev
@@ -87,95 +108,100 @@ Development endpoints:
 - Frontend: `http://localhost:5173`
 - Backend: `http://localhost:3001`
 
-## Workflows
+## UI workflows
 
-### PDF to reviewed form and PDF
+### Extract
 
-1. Select a document schema.
-2. Choose or drop one PDF.
-3. Pass local file checks.
-4. Click **Extract** explicitly.
-5. Review aggregate confidence, warnings, and per-field grounding badges.
-6. Edit extracted values.
-7. Validate the reviewed values locally.
-8. Choose a registered template and editable or flattened output.
-9. Generate and download the reviewed PDF.
+1. Open the **Extract** workspace.
+2. Choose or drop one supported document up to 10 MiB.
+3. Pass local extension, size, and signature checks.
+4. Click **Analyze document** explicitly.
+5. Review the detected document type, confidence, warnings, fields, tables, and evidence.
+6. Edit scalar, repeatable, and table values.
+7. Validate the edited values against the discovered schema.
+8. Export schema-valid reviewed JSON.
 
-Upload constraints:
+PDF and browser-safe images render inline. Other formats use a controlled summary and grounded
+evidence rather than executing or embedding source content.
 
-- Exactly one PDF.
-- MIME type `application/pdf`.
-- `.pdf` filename.
-- Maximum 10 MiB.
-- `%PDF-` marker within the first 1024 bytes.
-- Maximum 50 pages.
-- Extractable text is required.
+### Template review
 
-Scanned or image-only documents are not supported because v1 does not include OCR.
+1. Select a registered schema.
+2. Upload one text-based PDF.
+3. Click **Extract** explicitly.
+4. Review per-field grounding and edit the values.
+5. Validate the reviewed form.
+6. Choose a trusted template and editable or flattened output.
+7. Generate and download the reviewed PDF.
 
-### Form to PDF
+### Create PDF
 
-1. Select a schema and registered template.
-2. Complete the schema-generated form.
+1. Select a registered schema and template.
+2. Complete the dynamic form.
 3. Choose editable or flattened output.
 4. Generate and download the PDF.
 
-Editable PDFs retain AcroForm fields. Flattened PDFs convert their appearances into page content.
+Editable PDFs retain AcroForm fields. Flattened PDFs convert field appearances into page content.
 
-## Grounding
+## Grounding and review
 
-After Groq returns schema-shaped values, the backend compares each non-null value with normalized
-PDF text. Grounding is deterministic and does not make another provider request.
+Generic review states are:
 
-Statuses:
+- `verified`
+- `needs_review`
+- `missing`
+- `conflicting`
+- `low_ocr_confidence`
 
-- `verified`: strong exact or normalized support.
-- `needs_review`: weak, fuzzy, or absent deterministic support.
-- `missing`: extracted value is `null`.
-
-Confidence is a review heuristic, not a probability or factual guarantee. A matching value can still
-be contextually wrong, so important documents require human review.
-
-Editing does not recompute grounding. The badges continue to describe the original extraction, while
-an independent **Edited** indicator shows user changes.
+Confidence is a review heuristic, not a factual probability. Important documents require human
+review. Editing does not recompute the original grounding; an independent **Edited** indicator shows
+which values changed.
 
 ## Privacy and security boundaries
 
-- Uploaded PDFs remain in memory and are not persisted.
-- Extracted values and reviewed form values remain in memory and are not browser-persisted.
-- Generated PDFs are returned directly and are not stored by the service.
-- API responses for extraction and generation use `Cache-Control: no-store`.
-- Form values are not placed in URLs, query keys, cookies, logs, or analytics.
-- Source PDF text, prompts, source snippets, provider responses, asset paths, and PDF field names are
-  not exposed to the frontend.
-- Backend logs redact request bodies, response bodies, cookies, authorization headers, API-key
-  headers, query strings, PDF bytes, prompts, source text, extracted values, and form values.
-- CORS accepts only the configured frontend origin and requests without an Origin header.
-- Extraction and generation have separate process-local rate limits.
-- Production proxy trust is an explicit bounded hop count and defaults to disabled.
+- Uploads, extracted content, reviewed values, and generated PDFs remain in memory.
+- DocElla does not persist documents in a database or object store.
+- Extraction and generation responses use `Cache-Control: no-store`.
+- Complete source text, prompts, raw provider responses, credentials, internal asset paths, and PDF
+  field names are not returned to the frontend.
+- Browser previews use local object URLs and are revoked when no longer needed.
+- HTML and Office files are not executed by the frontend.
+- Backend logs redact request and response bodies, cookies, authorization and API-key headers,
+  uploaded bytes, prompts, source text, extracted values, and generated bytes.
+- CORS accepts the configured frontend origin and requests without an Origin header.
+- Extraction and generation use separate process-local rate limits.
+- Proxy trust is an explicit bounded hop count and defaults to disabled.
 
-See [SECURITY.md](SECURITY.md) and [docs/OPERATIONS.md](docs/OPERATIONS.md).
+See [SECURITY.md](SECURITY.md), [docs/GENERIC_EXTRACTION.md](docs/GENERIC_EXTRACTION.md), and
+[docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 ## Environment variables
 
 Required backend variables:
 
-- `FRONTEND_ORIGIN`: exact allowed frontend origin with no path.
-- `GROQ_API_KEY`: Groq secret used only by extraction.
+- `FRONTEND_ORIGIN`
+- `GROQ_API_KEY`
 
-Common optional variables:
+Optional OCR/layout variables, configured together:
 
-- `NODE_ENV`: `development`, `test`, or `production`.
-- `PORT`: backend port, default `3001`.
-- `LOG_LEVEL`: structured log level, default `info`.
-- `TRUST_PROXY_HOPS`: trusted reverse-proxy hop count, default `0`, maximum `10`.
-- `SHUTDOWN_TIMEOUT_MS`: graceful-shutdown window, default `10000`.
-- `GROQ_MODEL`: `openai/gpt-oss-20b` or `openai/gpt-oss-120b`.
-- `GROQ_TIMEOUT_MS`: provider timeout, default `30000`.
-- `GROQ_MAX_RETRIES`: provider retry count, default `1`.
-- `GROQ_MAX_INPUT_CHARACTERS`: maximum normalized provider input, default `30000`.
-- `EXTRACT_RATE_LIMIT_WINDOW_MS` and `EXTRACT_RATE_LIMIT_MAX`.
-- `GENERATE_RATE_LIMIT_WINDOW_MS` and `GENERATE_RATE_LIMIT_MAX`.
+- `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT`
+- `AZURE_DOCUMENT_INTELLIGENCE_KEY`
+- `AZURE_DOCUMENT_INTELLIGENCE_TIMEOUT_MS`
+- `AZURE_DOCUMENT_INTELLIGENCE_POLL_INTERVAL_MS`
+
+Common operational variables:
+
+- `NODE_ENV`
+- `PORT`
+- `LOG_LEVEL`
+- `TRUST_PROXY_HOPS`
+- `SHUTDOWN_TIMEOUT_MS`
+- `GROQ_MODEL`
+- `GROQ_TIMEOUT_MS`
+- `GROQ_MAX_RETRIES`
+- `GROQ_MAX_INPUT_CHARACTERS`
+- `EXTRACT_RATE_LIMIT_WINDOW_MS` and `EXTRACT_RATE_LIMIT_MAX`
+- `GENERATE_RATE_LIMIT_WINDOW_MS` and `GENERATE_RATE_LIMIT_MAX`
 
 Development may set:
 
@@ -183,10 +209,9 @@ Development may set:
 VITE_API_BASE_URL=http://localhost:3001
 ```
 
-The production Docker build intentionally uses an empty `VITE_API_BASE_URL` for same-origin API
-requests.
+The production image uses same-origin API requests.
 
-## Repository commands
+## Repository verification
 
 ```powershell
 npm run format:check
@@ -206,20 +231,14 @@ npm run smoke:pdf-generation -w @docella/backend
 npm run smoke:production -w @docella/backend
 ```
 
-`verify:release` builds all workspaces, verifies the frontend production bundle, and executes the
-compiled same-origin production smoke without contacting Groq.
+`verify:release` builds all workspaces, verifies the frontend production bundle, and runs the compiled
+same-origin production smoke without contacting Groq.
 
 ## Production Docker image
 
-Build:
-
 ```powershell
 docker build -t docella:v1 .
-```
 
-Run locally:
-
-```powershell
 docker run --rm -p 3001:3001 `
   -e NODE_ENV=production `
   -e PORT=3001 `
@@ -229,46 +248,34 @@ docker run --rm -p 3001:3001 `
   docella:v1
 ```
 
-Open `http://localhost:3001`. The image runs as a non-root user and exposes `/api/health` for platform
-health checks.
+Open `http://localhost:3001`. The image runs as a non-root user and exposes `/api/health`.
 
-Detailed provider-neutral instructions are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for provider-neutral deployment instructions.
 
-## Adding a schema and trusted template
+## Known limitations
 
-1. Add a flat document definition under `packages/schemas/src/definitions`.
-2. Assign a unique schema ID, version, public field configuration, and internal `pdfFieldName` for
-   each field.
-3. Register the definition in `packages/schemas/src/registry.ts`.
-4. Add or generate the trusted AcroForm template under `apps/backend/assets/templates`.
-5. Register its public template ID and internal asset path in the document definition.
-6. Run template generation and structural verification.
-7. Add shared, backend, frontend, and generation tests.
-8. Run the full repository and release gates.
-
-Only trusted, committed templates are supported.
-
-## Known v1 limitations
-
-- No OCR or scanned-document extraction.
-- No authentication or tenant isolation.
-- No database or object-storage persistence.
-- No user-uploaded templates.
-- Flat primitive schemas only; no repeating tables or nested groups.
-- No source highlighting or page coordinates.
-- Standard PDF appearance font only; unsupported characters fail safely.
-- Rate limits are in process memory and are not distributed across replicas.
+- No authentication, tenant isolation, database, or object-storage persistence.
+- No background queue or resumable extraction jobs.
+- No user-uploaded PDF templates.
+- Generic schemas support flat primitive fields and flat repeated tables, not arbitrary nested objects.
+- Legacy Office binaries, password-protected files, audio, video, executables, and proprietary binary
+  formats are outside the supported boundary.
+- Source evidence is shown as bounded snippets and locations; full visual coordinate highlighting is
+  not yet implemented.
+- Rate limits are process-local and are not distributed across replicas.
 - Grounding verifies textual support, not factual correctness.
+- Standard PDF appearance fonts may reject unsupported characters safely.
 
 ## Workspace structure
 
 ```text
-apps/frontend    React, Vite, dynamic forms, extraction review, downloads
-apps/backend     Express API, extraction, grounding, generation, production serving
-packages/schemas Shared definitions, public contracts, and Zod builders
+apps/frontend    React, Vite, generic and fixed review workspaces, downloads
+apps/backend     Express API, layout/OCR, extraction, grounding, generation, production serving
+packages/schemas Shared definitions, generic contracts, and runtime Zod builders
 ```
 
 ## Release state
 
-This branch prepares the `1.0.0` release candidate. A public deployment, Git tag, and GitHub release
-must be created only after the final release-hardening pull request is reviewed and merged.
+The repository is preparing the `1.0.0` release candidate. The public deployment, Git tag, and GitHub
+release must be created only after the remaining accuracy benchmark and final release review are
+complete.

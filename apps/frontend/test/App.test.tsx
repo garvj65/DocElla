@@ -11,7 +11,7 @@ describe("App shell", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders privacy messaging, accessible tabs, and the T09 upload workflow", async () => {
+  it("renders the enterprise workflows while preserving the fixed-schema tools", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
@@ -34,20 +34,28 @@ describe("App shell", () => {
 
     renderWithProviders(<App environment={{ apiBaseUrl: "" }} />);
 
-    expect(screen.getByRole("heading", { level: 1, name: "DocElla" })).toBeInTheDocument();
-    expect(screen.getByText(/without persistent storage/i)).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "PDF to Form" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Form to PDF" })).toBeInTheDocument();
+    expect(screen.getByText("DocElla")).toBeInTheDocument();
+    expect(screen.getByText(/processed without persistent storage/i)).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Extract" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Template review" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Create PDF" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Extract structured data from any business document",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Drop a document here/i)).toHaveAttribute(
+      "accept",
+      expect.stringContaining(".docx"),
+    );
 
-    await userEvent.click(screen.getByRole("tab", { name: "PDF to Form" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Template review" }));
     await waitFor(() =>
       expect(screen.getByRole("heading", { name: "PDF to Form" })).toBeInTheDocument(),
     );
     expect(screen.getByLabelText(/PDF file/i)).toHaveAttribute("accept", "application/pdf,.pdf");
-    expect(screen.getByRole("button", { name: /extract/i })).toBeDisabled();
-    expect(screen.queryByText(/No upload begins automatically/i)).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("tab", { name: "Form to PDF" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Create PDF" }));
     await waitFor(() =>
       expect(screen.getByRole("heading", { name: "Synthetic Document" })).toBeInTheDocument(),
     );

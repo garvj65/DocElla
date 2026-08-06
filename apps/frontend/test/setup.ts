@@ -5,6 +5,18 @@ Element.prototype.releasePointerCapture = () => undefined;
 Element.prototype.setPointerCapture = () => undefined;
 Element.prototype.scrollIntoView = () => undefined;
 
+Object.defineProperty(URL, "createObjectURL", {
+  configurable: true,
+  writable: true,
+  value: () => "blob:docella-test",
+});
+
+Object.defineProperty(URL, "revokeObjectURL", {
+  configurable: true,
+  writable: true,
+  value: () => undefined,
+});
+
 Object.defineProperty(Blob.prototype, "arrayBuffer", {
   configurable: true,
   value: function arrayBuffer(this: Blob) {
