@@ -4,24 +4,25 @@ on:
   pull_request:
     branches:
       - main
+  push:
+    branches:
+      - main
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  format:
-    name: Format PR4 Frontend
+  checks:
+    name: Repository Gates
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out PR branch
+      - name: Check out repository
         uses: actions/checkout@v4
-        with:
-          ref: agent/pr4-enterprise-review-workspace
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -29,22 +30,62 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Apply repository formatting
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build and verify release artifacts
+        run: npm run verify:release
+
+  container:
+    name: Production Container
+    needs: checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build production image
+        run: docker build --tag docella:ci .
+
+      - name: Start production image
         run: |
-          npm ci
-          npx prettier \
-            apps/frontend/src/api/generic-document-api.ts \
-            apps/frontend/src/features/generic-extraction/document-preview.tsx \
-            apps/frontend/src/features/generic-extraction/export-generic-json.ts \
-            apps/frontend/src/features/generic-extraction/generic-document-file.ts \
-            apps/frontend/src/features/generic-extraction/generic-document-review.tsx \
-            apps/frontend/src/features/generic-extraction/generic-extraction-workspace.tsx \
-            --write
-          git add apps/frontend/src/api/generic-document-api.ts apps/frontend/src/features/generic-extraction
-          if git diff --cached --quiet; then
-            exit 0
-          fi
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git commit -m "style: format enterprise review workspace"
-          git push origin HEAD:agent/pr4-enterprise-review-workspace
+          docker run --detach --name docella-ci --publish 3001:3001 \
+            --env NODE_ENV=production \
+            --env PORT=3001 \
+            --env FRONTEND_ORIGIN=http://localhost:3001 \
+            --env GROQ_API_KEY=ci-not-used \
+            --env TRUST_PROXY_HOPS=0 \
+            --env SHUTDOWN_TIMEOUT_MS=5000 \
+            docella:ci
+
+      - name: Verify container health and frontend
+        run: |
+          for attempt in {1..30}; do
+            if node -e "fetch('http://127.0.0.1:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; then
+              break
+            fi
+            if [ "$attempt" = "30" ]; then
+              docker logs docella-ci
+              exit 1
+            fi
+            sleep 1
+          done
+          node -e "Promise.all([fetch('http://127.0.0.1:3001/'), fetch('http://127.0.0.1:3001/api/schemas')]).then(async ([home, schemas]) => { if (!home.ok || !schemas.ok || !(await home.text()).includes('DocElla')) process.exit(1); }).catch(() => process.exit(1))"
+          test "$(docker exec docella-ci id -u)" != "0"
+
+      - name: Stop production image
+        if: always()
+        run: docker rm --force docella-ci || true
