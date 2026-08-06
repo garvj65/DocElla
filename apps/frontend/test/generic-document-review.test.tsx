@@ -17,7 +17,6 @@ const findField = (fieldId: string) => {
 describe("generic document review", () => {
   afterEach(() => {
     vi.restoreAllMocks();
-    vi.unstubAllGlobals();
   });
 
   it("parses typed repeatable values instead of converting every item to text", () => {
@@ -32,13 +31,8 @@ describe("generic document review", () => {
   });
 
   it("associates labels, exposes evidence, validates edits, and blocks invalid JSON export", async () => {
-    const createObjectUrl = vi.fn(() => "blob:generic-export");
-    const revokeObjectUrl = vi.fn();
-    vi.stubGlobal("URL", {
-      ...URL,
-      createObjectURL: createObjectUrl,
-      revokeObjectURL: revokeObjectUrl,
-    });
+    const createObjectUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:generic-export");
+    const revokeObjectUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
 
     render(
@@ -49,37 +43,31 @@ describe("generic document review", () => {
       />,
     );
 
-    expect(screen.getByLabelText("Invoice number")).toHaveValue("INV-1001");
-    expect(screen.getByLabelText("Amounts")).toHaveValue("100\n25.5");
+    expect(screen.getByLabelText(/Invoice number/i)).toHaveValue("INV-1001");
+    expect(screen.getByLabelText(/Amounts/i)).toHaveValue("100\n25.5");
 
     await userEvent.click(
       screen.getByRole("button", { name: "Inspect evidence for Invoice number" }),
     );
     expect(screen.getByText(/Invoice INV-1001 priority approved/i)).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Amounts"), { target: { value: "10\n20.5" } });
-    fireEvent.change(screen.getByLabelText("Flags"), { target: { value: "yes\nno" } });
+    fireEvent.change(screen.getByLabelText(/Amounts/i), { target: { value: "10\n20.5" } });
+    fireEvent.change(screen.getByLabelText(/Flags/i), { target: { value: "yes\nno" } });
     await userEvent.click(screen.getByRole("button", { name: "Validate" }));
     expect(screen.getByText(/match the discovered schema/i)).toBeInTheDocument();
 
-    await userEvent.clear(screen.getByLabelText("Invoice number"));
+    await userEvent.clear(screen.getByLabelText(/Invoice number/i));
     await userEvent.click(screen.getByRole("button", { name: "Export JSON" }));
     expect(screen.getByText(/need attention/i)).toBeInTheDocument();
     expect(createObjectUrl).not.toHaveBeenCalled();
 
-    await userEvent.type(screen.getByLabelText("Invoice number"), "INV-2002");
+    await userEvent.type(screen.getByLabelText(/Invoice number/i), "INV-2002");
     await userEvent.click(screen.getByRole("button", { name: "Export JSON" }));
     expect(createObjectUrl).toHaveBeenCalledTimes(1);
     expect(revokeObjectUrl).toHaveBeenCalledWith("blob:generic-export");
   });
 
   it("marks table edits and supports adding and removing rows", async () => {
-    vi.stubGlobal("URL", {
-      ...URL,
-      createObjectURL: vi.fn(() => "blob:preview"),
-      revokeObjectURL: vi.fn(),
-    });
-
     render(
       <GenericDocumentReview
         file={new File(["PK"], "invoice.docx")}
