@@ -90,9 +90,7 @@ describe("generic extraction workspace", () => {
     await userEvent.upload(screen.getByLabelText(/Drop a document here/i), validPdf());
     await userEvent.click(await screen.findByRole("button", { name: "Analyze document" }));
 
-    await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent(/not configured/i),
-    );
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/not configured/i));
     expect(screen.getByRole("alert")).toHaveTextContent("req_layout_1");
     expect(screen.getByRole("alert")).not.toHaveTextContent("raw provider detail");
   });

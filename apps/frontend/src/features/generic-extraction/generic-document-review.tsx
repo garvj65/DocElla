@@ -25,13 +25,11 @@ interface MutableDocumentValues {
   readonly tables: Record<string, MutableTableRow[]>;
 }
 
-const isReadonlyScalarArray = (
-  value: GenericFieldValue,
-): value is readonly GenericScalarValue[] => Array.isArray(value);
+const isReadonlyScalarArray = (value: GenericFieldValue): value is readonly GenericScalarValue[] =>
+  Array.isArray(value);
 
-const isMutableScalarArray = (
-  value: MutableFieldValue,
-): value is GenericScalarValue[] => Array.isArray(value);
+const isMutableScalarArray = (value: MutableFieldValue): value is GenericScalarValue[] =>
+  Array.isArray(value);
 
 const cloneValues = (values: GenericDocumentValues): MutableDocumentValues => {
   const fields: Record<string, MutableFieldValue> = {};
@@ -473,7 +471,9 @@ export function GenericDocumentReview({
                           aria-label={`Inspect evidence for ${field.label}`}
                           className="rounded outline-none focus:ring-2 focus:ring-teal-200"
                           disabled={evidence === undefined}
-                          title={evidence === undefined ? "No source evidence" : locationLabel(evidence)}
+                          title={
+                            evidence === undefined ? "No source evidence" : locationLabel(evidence)
+                          }
                           type="button"
                           onClick={() => {
                             setSelectedEvidence(evidence);
@@ -573,7 +573,9 @@ export function GenericDocumentReview({
                     </tbody>
                   </table>
                   {rows.length === 0 ? (
-                    <p className="px-4 py-6 text-center text-sm text-slate-500">No rows extracted.</p>
+                    <p className="px-4 py-6 text-center text-sm text-slate-500">
+                      No rows extracted.
+                    </p>
                   ) : null}
                 </div>
                 <div className="border-t border-slate-200 px-4 py-3">

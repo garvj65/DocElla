@@ -21,7 +21,9 @@ describe("generic document file validation", () => {
   });
 
   it("rejects unsupported extensions, empty files, spoofed signatures, and oversized files", async () => {
-    await expect(validateGenericDocumentFile(new File(["text"], "notes.txt"))).resolves.toMatchObject({
+    await expect(
+      validateGenericDocumentFile(new File(["text"], "notes.txt")),
+    ).resolves.toMatchObject({
       valid: false,
     });
     await expect(validateGenericDocumentFile(new File([], "empty.pdf"))).resolves.toMatchObject({

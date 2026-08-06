@@ -6,10 +6,7 @@ import {
   GenericDocumentReview,
   parseRepeatableFieldText,
 } from "../src/features/generic-extraction/generic-document-review";
-import {
-  genericDocumentResult,
-  genericDocumentSchema,
-} from "./support/generic-document";
+import { genericDocumentResult, genericDocumentSchema } from "./support/generic-document";
 
 const findField = (fieldId: string) => {
   const field = genericDocumentSchema.sections
@@ -33,10 +30,7 @@ describe("generic document review", () => {
       true,
       false,
     ]);
-    expect(parseRepeatableFieldText(findField("tags"), "alpha\nbeta")).toEqual([
-      "alpha",
-      "beta",
-    ]);
+    expect(parseRepeatableFieldText(findField("tags"), "alpha\nbeta")).toEqual(["alpha", "beta"]);
   });
 
   it("associates labels, exposes evidence, validates edits, and blocks invalid JSON export", async () => {
@@ -60,7 +54,9 @@ describe("generic document review", () => {
     expect(screen.getByLabelText("Invoice number")).toHaveValue("INV-1001");
     expect(screen.getByLabelText("Amounts")).toHaveValue("100\n25.5");
 
-    await userEvent.click(screen.getByRole("button", { name: "Inspect evidence for Invoice number" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Inspect evidence for Invoice number" }),
+    );
     expect(screen.getByText(/Invoice INV-1001 priority approved/i)).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Amounts"), { target: { value: "10\n20.5" } });
