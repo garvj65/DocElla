@@ -2,10 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  GenericDocumentReview,
-  parseRepeatableFieldText,
-} from "../src/features/generic-extraction/generic-document-review";
+import { GenericDocumentReview } from "../src/features/generic-extraction/generic-document-review";
+import { parseRepeatableFieldText } from "../src/features/generic-extraction/generic-review-values";
 import { genericDocumentResult, genericDocumentSchema } from "./support/generic-document";
 
 const findField = (fieldId: string) => {

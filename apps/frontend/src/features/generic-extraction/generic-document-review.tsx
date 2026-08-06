@@ -15,6 +15,7 @@ import { useMemo, useState } from "react";
 import { Button } from "../../components/ui/button";
 import { DocumentPreview } from "./document-preview";
 import { exportGenericDocumentJson } from "./export-generic-json";
+import { parseRepeatableFieldText } from "./generic-review-values";
 import { ReviewStatusChip } from "./review-status-chip";
 
 type MutableFieldValue = GenericScalarValue | GenericScalarValue[] | null;
@@ -63,43 +64,6 @@ const parseNumber = (value: string): number | null => {
   if (trimmed.length === 0) return null;
   const parsed = Number(trimmed);
   return Number.isFinite(parsed) ? parsed : null;
-};
-
-const parseRepeatableItem = (field: DiscoveredField, value: string): GenericScalarValue => {
-  switch (field.valueType) {
-    case "number":
-    case "currency": {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) ? parsed : value;
-    }
-    case "boolean": {
-      const normalized = value.toLocaleLowerCase();
-      if (["true", "yes", "1"].includes(normalized)) return true;
-      if (["false", "no", "0"].includes(normalized)) return false;
-      return value;
-    }
-    case "text":
-    case "long_text":
-    case "email":
-    case "phone":
-    case "address":
-    case "identifier":
-    case "date":
-    case "select":
-      return value;
-  }
-};
-
-export const parseRepeatableFieldText = (
-  field: DiscoveredField,
-  input: string,
-): MutableFieldValue => {
-  const items = input
-    .split("\n")
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0)
-    .map((item) => parseRepeatableItem(field, item));
-  return items.length === 0 ? null : items;
 };
 
 const inputClass =
@@ -422,7 +386,10 @@ export function GenericDocumentReview({
 
       <div className="grid gap-4 xl:grid-cols-[minmax(320px,0.86fr)_minmax(0,1.14fr)]">
         <div className="xl:sticky xl:top-4 xl:self-start">
-          <DocumentPreview evidence={selectedEvidence} file={file} />
+          <DocumentPreview
+            {...(selectedEvidence === undefined ? {} : { evidence: selectedEvidence })}
+            file={file}
+          />
         </div>
 
         <div className="space-y-4">

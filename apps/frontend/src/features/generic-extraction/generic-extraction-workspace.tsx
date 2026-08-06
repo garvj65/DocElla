@@ -49,7 +49,7 @@ export function GenericExtractionWorkspace({ api }: { readonly api: GenericDocum
   const inputRef = useRef<HTMLInputElement>(null);
   const validationIdRef = useRef(0);
   const extractionIdRef = useRef(0);
-  const controllerRef = useRef<AbortController | undefined>();
+  const controllerRef = useRef<AbortController | undefined>(undefined);
   const errorRef = useRef<HTMLDivElement>(null);
 
   const cancelExtraction = useCallback(() => {
