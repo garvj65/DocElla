@@ -109,7 +109,9 @@ function ScalarFieldInput({
     return (
       <select
         className={inputClass}
-        onChange={(event) => onChange(event.target.value || null)}
+        onChange={(event) => {
+          onChange(event.target.value || null);
+        }}
         value={typeof value === "string" ? value : ""}
       >
         <option value="">Not available</option>
@@ -126,9 +128,9 @@ function ScalarFieldInput({
     return (
       <textarea
         className={`${inputClass} min-h-24 resize-y`}
-        onChange={(event) =>
-          onChange(event.target.value.trim().length === 0 ? null : event.target.value)
-        }
+        onChange={(event) => {
+          onChange(event.target.value.trim().length === 0 ? null : event.target.value);
+        }}
         value={fieldTextValue(value)}
       />
     );
@@ -147,15 +149,15 @@ function ScalarFieldInput({
     <input
       className={inputClass}
       inputMode={field.valueType === "phone" ? "tel" : undefined}
-      onChange={(event) =>
+      onChange={(event) => {
         onChange(
           field.valueType === "number" || field.valueType === "currency"
             ? parseNumber(event.target.value)
             : event.target.value.trim().length === 0
               ? null
               : event.target.value,
-        )
-      }
+        );
+      }}
       step={field.valueType === "number" || field.valueType === "currency" ? "any" : undefined}
       type={inputType}
       value={fieldTextValue(value)}
@@ -177,9 +179,9 @@ function TableCellInput({
       <select
         aria-label={column.label}
         className={`${inputClass} min-w-28`}
-        onChange={(event) =>
-          onChange(event.target.value.length === 0 ? null : event.target.value === "true")
-        }
+        onChange={(event) => {
+          onChange(event.target.value.length === 0 ? null : event.target.value === "true");
+        }}
         value={value === true ? "true" : value === false ? "false" : ""}
       >
         <option value="">—</option>
@@ -194,15 +196,15 @@ function TableCellInput({
     <input
       aria-label={column.label}
       className={`${inputClass} min-w-32`}
-      onChange={(event) =>
+      onChange={(event) => {
         onChange(
           numeric
             ? parseNumber(event.target.value)
             : event.target.value.trim().length === 0
               ? null
               : event.target.value,
-        )
-      }
+        );
+      }}
       step={numeric ? "any" : undefined}
       type={column.valueType === "date" ? "date" : numeric ? "number" : "text"}
       value={tableTextValue(value)}
@@ -333,7 +335,9 @@ export function GenericDocumentReview({
             <Button
               type="button"
               variant="secondary"
-              onClick={() => exportGenericDocumentJson(result.schema, toReadonlyValues(values))}
+              onClick={() => {
+                exportGenericDocumentJson(result.schema, toReadonlyValues(values));
+              }}
             >
               <Download aria-hidden="true" className="h-4 w-4" />
               Export JSON
@@ -407,14 +411,18 @@ export function GenericDocumentReview({
                             evidence === undefined ? "No source evidence" : locationLabel(evidence)
                           }
                           type="button"
-                          onClick={() => setSelectedEvidence(evidence)}
+                          onClick={() => {
+                            setSelectedEvidence(evidence);
+                          }}
                         >
                           <ReviewStatusChip edited={edited} status={review?.status ?? "missing"} />
                         </button>
                       </div>
                       <ScalarFieldInput
                         field={field}
-                        onChange={(value) => updateField(field.id, value)}
+                        onChange={(value) => {
+                          updateField(field.id, value);
+                        }}
                         value={current}
                       />
                       {field.description.length > 0 ? (
@@ -445,7 +453,9 @@ export function GenericDocumentReview({
                     disabled={evidence === undefined}
                     title={evidence === undefined ? "No source evidence" : locationLabel(evidence)}
                     type="button"
-                    onClick={() => setSelectedEvidence(evidence)}
+                    onClick={() => {
+                      setSelectedEvidence(evidence);
+                    }}
                   >
                     <ReviewStatusChip status={review?.status ?? "missing"} />
                   </button>
@@ -471,9 +481,9 @@ export function GenericDocumentReview({
                             <td className="px-3 py-2 align-top" key={column.id}>
                               <TableCellInput
                                 column={column}
-                                onChange={(value) =>
-                                  updateTableCell(table.id, rowIndex, column.id, value)
-                                }
+                                onChange={(value) => {
+                                  updateTableCell(table.id, rowIndex, column.id, value);
+                                }}
                                 value={row[column.id]}
                               />
                             </td>
@@ -483,7 +493,9 @@ export function GenericDocumentReview({
                               aria-label={`Remove row ${String(rowIndex + 1)}`}
                               className="rounded p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-200"
                               type="button"
-                              onClick={() => removeTableRow(table.id, rowIndex)}
+                              onClick={() => {
+                                removeTableRow(table.id, rowIndex);
+                              }}
                             >
                               <Trash2 aria-hidden="true" className="h-4 w-4" />
                             </button>
@@ -502,7 +514,9 @@ export function GenericDocumentReview({
                   <Button
                     type="button"
                     variant="secondary"
-                    onClick={() => addTableRow(table.id, table.columns)}
+                    onClick={() => {
+                      addTableRow(table.id, table.columns);
+                    }}
                   >
                     <Plus aria-hidden="true" className="h-4 w-4" />
                     Add row

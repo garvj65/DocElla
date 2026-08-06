@@ -201,7 +201,9 @@ export function GenericExtractionWorkspace({ api }: { readonly api: GenericDocum
         <label
           className="flex min-h-64 cursor-pointer flex-col items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center transition hover:border-teal-500 hover:bg-teal-50/40 focus-within:ring-2 focus-within:ring-teal-200"
           htmlFor="generic-document-upload"
-          onDragOver={(event) => event.preventDefault()}
+          onDragOver={(event) => {
+            event.preventDefault();
+          }}
           onDrop={(event) => {
             event.preventDefault();
             void selectFile(event.dataTransfer.files[0]);

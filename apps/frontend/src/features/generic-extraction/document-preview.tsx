@@ -46,7 +46,9 @@ export function DocumentPreview({
     }
     const url = URL.createObjectURL(file);
     setObjectUrl(url);
-    return () => URL.revokeObjectURL(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
   }, [file, previewKind]);
 
   return (
