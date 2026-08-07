@@ -138,9 +138,7 @@ export const buildGenericDiscoveryJsonSchema = (): JsonObject =>
     title: nullable(stringSchema()),
   });
 
-const scalarProviderSchema = (
-  definition: DiscoveredField | DiscoveredTableColumn,
-): JsonObject => {
+const scalarProviderSchema = (definition: DiscoveredField | DiscoveredTableColumn): JsonObject => {
   switch (definition.valueType) {
     case "number":
     case "currency":
@@ -169,9 +167,7 @@ const fieldValueProviderSchema = (field: DiscoveredField): JsonObject => {
   });
 };
 
-const tableRowProviderSchema = (
-  columns: readonly DiscoveredTableColumn[],
-): JsonObject =>
+const tableRowProviderSchema = (columns: readonly DiscoveredTableColumn[]): JsonObject =>
   closedObject(
     Object.fromEntries(
       columns.map((column) => [column.id, nullable(scalarProviderSchema(column))]),
