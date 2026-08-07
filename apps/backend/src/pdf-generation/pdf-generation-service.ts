@@ -70,7 +70,9 @@ export const createPdfGenerationService = (
 
         const value = formatPdfFieldValue(field, request.values[field.key]);
         try {
-          appearanceFont.encodeText(value);
+          for (const line of value.split(/\r\n|\r|\n/u)) {
+            appearanceFont.encodeText(line);
+          }
         } catch (error) {
           throw new AppError({
             cause: error,
