@@ -36,7 +36,10 @@ const createRealGenerationApp = () =>
     ),
   });
 
-const pdfParser = (res: NodeJS.ReadableStream, callback: (error: Error | null, body?: Buffer) => void) => {
+const pdfParser = (
+  res: NodeJS.ReadableStream,
+  callback: (error: Error | null, body?: Buffer) => void,
+) => {
   const chunks: Buffer[] = [];
   res.on("data", (chunk: Buffer) => chunks.push(chunk));
   res.on("end", () => callback(null, Buffer.concat(chunks)));
@@ -85,7 +88,11 @@ describe("multiline PDF generation", () => {
       .parse(pdfParser)
       .expect(200);
 
-    expect(Buffer.from(response.body as Buffer).subarray(0, 5).toString()).toBe("%PDF-");
+    expect(
+      Buffer.from(response.body as Buffer)
+        .subarray(0, 5)
+        .toString(),
+    ).toBe("%PDF-");
     const pdfDocument = await PDFDocument.load(response.body as Buffer);
     expect(pdfDocument.getForm().getFields()).toHaveLength(0);
   });
