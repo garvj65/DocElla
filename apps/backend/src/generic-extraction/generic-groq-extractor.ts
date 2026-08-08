@@ -21,6 +21,10 @@ import {
   buildGenericExtractionSystemInstruction,
   buildGenericExtractionUserMessage,
 } from "./generic-extraction-prompt.js";
+import {
+  buildGenericExtractionBatches,
+  type GenericExtractionBatch,
+} from "./generic-extraction-batches.js";
 import { genericProviderBudgets, sampleGenericProviderContent } from "./generic-provider-budget.js";
 import type { GenericSchemaDiscoverer, GenericValueExtractor } from "./generic-extraction-types.js";
 
@@ -67,6 +71,16 @@ interface CompleteWithBackoffOptions {
   readonly stage: "discovery" | "extraction";
   readonly system: string;
   readonly userMessage: (content: string) => string;
+}
+
+interface ExtractBatchOptions {
+  readonly batch: GenericExtractionBatch;
+  readonly client: GroqChatClient;
+  readonly content: string;
+  readonly environment: Environment;
+  readonly layout: Parameters<typeof buildGenericExtractionUserMessage>[0];
+  readonly logger: Logger;
+  readonly signal: AbortSignal | undefined;
 }
 
 const throwIfAborted = (signal: AbortSignal | undefined): void => {
@@ -298,6 +312,53 @@ const warnRetry = (
   );
 };
 
+const extractBatchValues = async ({
+  batch,
+  client,
+  content,
+  environment,
+  layout,
+  logger,
+  signal,
+}: ExtractBatchOptions): Promise<GenericDocumentValues> => {
+  const parser = buildGenericDocumentExtractionValuesSchema(batch.schema);
+
+  for (const attempt of [0, 1] as const) {
+    const response = await completeWithPayloadBackoff({
+      client,
+      content,
+      environment,
+      logger,
+      schema: buildGenericExtractionJsonSchema(batch.schema),
+      schemaName: `generic_values_${batch.schema.documentType}_${batch.id}_v1`,
+      signal,
+      stage: "extraction",
+      system: buildGenericExtractionSystemInstruction(batch.schema),
+      userMessage: (sampledContent) =>
+        buildGenericExtractionUserMessage(layout, sampledContent, attempt === 1),
+    });
+
+    try {
+      return parseContent(
+        response,
+        parser,
+        ERROR_CODES.GENERIC_EXTRACTION_OUTPUT_INVALID,
+        "extraction",
+        (value) => normalizeProviderValuesResult(value, batch.schema),
+      );
+    } catch (error) {
+      if (attempt === 0 && error instanceof AppError) {
+        warnRetry(logger, environment, "extraction");
+        throwIfAborted(signal);
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw invalidOutput(ERROR_CODES.GENERIC_EXTRACTION_OUTPUT_INVALID, "extraction");
+};
+
 export const createGenericGroqExtractors = ({
   client,
   environment,
@@ -341,39 +402,48 @@ export const createGenericGroqExtractors = ({
   },
   valueExtractor: {
     extract: async ({ documentSchema, layout, signal }): Promise<GenericDocumentValues> => {
-      const parser = buildGenericDocumentExtractionValuesSchema(documentSchema);
-      for (const attempt of [0, 1] as const) {
-        const response = await completeWithPayloadBackoff({
+      const batches = buildGenericExtractionBatches(documentSchema);
+      const mergedFields: Record<string, unknown> = {};
+      const mergedTables: Record<string, unknown> = {};
+
+      for (const [batchIndex, batch] of batches.entries()) {
+        throwIfAborted(signal);
+        logger.debug(
+          {
+            event: "generic_extraction_batch_started",
+            genericExtractionBatch: batch.id,
+            genericExtractionBatchIndex: batchIndex + 1,
+            genericExtractionBatchTotal: batches.length,
+            providerModel: environment.groqModel,
+          },
+          "Extracting bounded generic document batch",
+        );
+
+        const values = await extractBatchValues({
+          batch,
           client,
           content: layout.content,
           environment,
+          layout,
           logger,
-          schema: buildGenericExtractionJsonSchema(documentSchema),
-          schemaName: `generic_values_${documentSchema.documentType}_v1`,
           signal,
-          stage: "extraction",
-          system: buildGenericExtractionSystemInstruction(documentSchema),
-          userMessage: (content) =>
-            buildGenericExtractionUserMessage(layout, content, attempt === 1),
         });
-        try {
-          return parseContent(
-            response,
-            parser,
-            ERROR_CODES.GENERIC_EXTRACTION_OUTPUT_INVALID,
-            "extraction",
-            (value) => normalizeProviderValuesResult(value, documentSchema),
-          );
-        } catch (error) {
-          if (attempt === 0 && error instanceof AppError) {
-            warnRetry(logger, environment, "extraction");
-            throwIfAborted(signal);
-            continue;
-          }
-          throw error;
-        }
+
+        Object.assign(mergedFields, values.fields);
+        Object.assign(mergedTables, values.tables);
       }
-      throw invalidOutput(ERROR_CODES.GENERIC_EXTRACTION_OUTPUT_INVALID, "extraction");
+
+      const parser = buildGenericDocumentExtractionValuesSchema(documentSchema);
+      const result = parser.safeParse({ fields: mergedFields, tables: mergedTables });
+      if (!result.success) {
+        throw invalidOutput(
+          ERROR_CODES.GENERIC_EXTRACTION_OUTPUT_INVALID,
+          "extraction",
+          result.error,
+        );
+      }
+
+      return result.data;
     },
   },
 });
