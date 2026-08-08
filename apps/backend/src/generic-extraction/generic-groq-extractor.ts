@@ -94,6 +94,29 @@ const invalidOutput = (
     status: 502,
   });
 
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const normalizeProviderDiscoveryResult = (value: unknown): unknown => {
+  if (!isRecord(value) || !Array.isArray(value.sections)) return value;
+
+  return {
+    ...value,
+    sections: value.sections.map((section) => {
+      if (!isRecord(section) || !Array.isArray(section.fields)) return section;
+      return {
+        ...section,
+        fields: section.fields.map((field) => {
+          if (!isRecord(field) || field.valueType === "select") return field;
+          const { options: _options, ...normalizedField } = field;
+          void _options;
+          return normalizedField;
+        }),
+      };
+    }),
+  };
+};
+
 const parseContent = <T>(
   content: string | null | undefined,
   parser: z.ZodType<T>,
@@ -101,6 +124,7 @@ const parseContent = <T>(
     | typeof ERROR_CODES.GENERIC_SCHEMA_DISCOVERY_INVALID
     | typeof ERROR_CODES.GENERIC_EXTRACTION_OUTPUT_INVALID,
   stage: "discovery" | "extraction",
+  normalize: (value: unknown) => unknown = (value) => value,
 ): T => {
   if (content === undefined || content === null || content.trim().length === 0) {
     throw invalidOutput(code, stage);
@@ -113,7 +137,7 @@ const parseContent = <T>(
     throw invalidOutput(code, stage, error);
   }
 
-  const result = parser.safeParse(parsed);
+  const result = parser.safeParse(normalize(parsed));
   if (!result.success) {
     throw invalidOutput(code, stage, result.error);
   }
@@ -215,6 +239,7 @@ export const createGenericGroqExtractors = ({
             discoveredDocumentSchemaSchema,
             ERROR_CODES.GENERIC_SCHEMA_DISCOVERY_INVALID,
             "discovery",
+            normalizeProviderDiscoveryResult,
           );
         } catch (error) {
           if (attempt === 0 && error instanceof AppError) {
