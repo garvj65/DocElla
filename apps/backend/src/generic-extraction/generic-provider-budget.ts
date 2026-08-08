@@ -14,7 +14,10 @@ export const genericProviderBudgets = (environment: Environment): readonly numbe
   return [...new Set(budgets)].sort((left, right) => right - left);
 };
 
-export const sampleGenericProviderContent = (content: string, maximumCharacters: number): string => {
+export const sampleGenericProviderContent = (
+  content: string,
+  maximumCharacters: number,
+): string => {
   if (content.length <= maximumCharacters) return content;
 
   const separator = "\n\n[DOCELLA_CONTENT_TRUNCATED]\n\n";

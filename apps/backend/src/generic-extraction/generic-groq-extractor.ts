@@ -21,10 +21,7 @@ import {
   buildGenericExtractionSystemInstruction,
   buildGenericExtractionUserMessage,
 } from "./generic-extraction-prompt.js";
-import {
-  genericProviderBudgets,
-  sampleGenericProviderContent,
-} from "./generic-provider-budget.js";
+import { genericProviderBudgets, sampleGenericProviderContent } from "./generic-provider-budget.js";
 import type { GenericSchemaDiscoverer, GenericValueExtractor } from "./generic-extraction-types.js";
 
 const GENERIC_COMPLETION_TOKENS = 4_096 as const;
@@ -255,7 +252,9 @@ const completeWithPayloadBackoff = async ({
         signal,
       );
     } catch (error) {
-      const nextBudget = budgets.slice(index + 1).find((candidate) => candidate < sampledContent.length);
+      const nextBudget = budgets
+        .slice(index + 1)
+        .find((candidate) => candidate < sampledContent.length);
       if (!isProviderPayloadTooLarge(error) || nextBudget === undefined) throw error;
 
       logger.warn(
@@ -317,7 +316,8 @@ export const createGenericGroqExtractors = ({
           signal,
           stage: "discovery",
           system: buildGenericDiscoverySystemInstruction(),
-          userMessage: (content) => buildGenericDiscoveryUserMessage(layout, content, attempt === 1),
+          userMessage: (content) =>
+            buildGenericDiscoveryUserMessage(layout, content, attempt === 1),
         });
         try {
           return parseContent(
@@ -353,7 +353,8 @@ export const createGenericGroqExtractors = ({
           signal,
           stage: "extraction",
           system: buildGenericExtractionSystemInstruction(documentSchema),
-          userMessage: (content) => buildGenericExtractionUserMessage(layout, content, attempt === 1),
+          userMessage: (content) =>
+            buildGenericExtractionUserMessage(layout, content, attempt === 1),
         });
         try {
           return parseContent(

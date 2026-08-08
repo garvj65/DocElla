@@ -95,14 +95,18 @@ describe("generic provider payload budgeting", () => {
             if (callCount === 1) {
               throw Object.assign(new Error("request body too large"), { status: 413 });
             }
-            return { choices: [{ message: { content: JSON.stringify(providerDiscoveredSchema) } }] };
+            return {
+              choices: [{ message: { content: JSON.stringify(providerDiscoveredSchema) } }],
+            };
           },
         },
       },
     };
 
     const extractors = createGenericGroqExtractors({ client, environment, logger });
-    await expect(extractors.schemaDiscoverer.discover({ layout })).resolves.toEqual(discoveredSchema);
+    await expect(extractors.schemaDiscoverer.discover({ layout })).resolves.toEqual(
+      discoveredSchema,
+    );
 
     expect(captured).toHaveLength(2);
     expect(captured[0]?.max_completion_tokens).toBe(4_096);
