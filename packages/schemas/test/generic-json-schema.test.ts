@@ -91,6 +91,10 @@ const assertGroqStrictCompatible = (schemaValue: JsonValue, path = "$root"): voi
 
   const properties = schemaValue.properties;
   if (isObject(properties)) {
+    expect(
+      Object.keys(properties).length,
+      `${path} must not be an empty object schema`,
+    ).toBeGreaterThan(0);
     expect(schemaValue.additionalProperties, `${path} must be closed`).toBe(false);
     const expectedRequired = Object.keys(properties).sort();
     const required = schemaValue.required;
@@ -105,6 +109,11 @@ const assertGroqStrictCompatible = (schemaValue: JsonValue, path = "$root"): voi
     if (key === "required") continue;
     assertGroqStrictCompatible(value, `${path}.${key}`);
   }
+};
+
+const rootProperties = (value: JsonObject): JsonObject => {
+  if (!isObject(value.properties)) throw new Error("Expected root schema properties.");
+  return value.properties;
 };
 
 describe("generic provider JSON Schemas", () => {
@@ -139,6 +148,34 @@ describe("generic provider JSON Schemas", () => {
     expect(serialized).not.toContain("~standard");
     expect(serialized).not.toContain('"format"');
     expect(serialized).not.toContain('"anyOf"');
+    assertGroqStrictCompatible(extraction);
+  });
+
+  it("omits the empty tables object for field-only documents", () => {
+    const fieldOnlySchema = {
+      ...schema,
+      tables: [],
+    } as const satisfies DiscoveredDocumentSchema;
+    const extraction = buildGenericExtractionJsonSchema(fieldOnlySchema);
+    const properties = rootProperties(extraction);
+
+    expect(properties).toHaveProperty("fields");
+    expect(properties).not.toHaveProperty("tables");
+    expect(extraction.required).toEqual(["fields"]);
+    assertGroqStrictCompatible(extraction);
+  });
+
+  it("omits the empty fields object for table-only documents", () => {
+    const tableOnlySchema = {
+      ...schema,
+      sections: [],
+    } as const satisfies DiscoveredDocumentSchema;
+    const extraction = buildGenericExtractionJsonSchema(tableOnlySchema);
+    const properties = rootProperties(extraction);
+
+    expect(properties).not.toHaveProperty("fields");
+    expect(properties).toHaveProperty("tables");
+    expect(extraction.required).toEqual(["tables"]);
     assertGroqStrictCompatible(extraction);
   });
 });

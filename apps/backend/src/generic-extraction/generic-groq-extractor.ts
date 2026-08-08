@@ -115,6 +115,22 @@ const normalizeProviderDiscoveryResult = (value: unknown): unknown => {
   };
 };
 
+const normalizeProviderValuesResult = (
+  value: unknown,
+  documentSchema: DiscoveredDocumentSchema,
+): unknown => {
+  if (!isRecord(value)) return value;
+
+  const hasFields = documentSchema.sections.some((section) => section.fields.length > 0);
+  const hasTables = documentSchema.tables.length > 0;
+
+  return {
+    ...value,
+    ...(hasFields ? {} : { fields: {} }),
+    ...(hasTables ? {} : { tables: {} }),
+  };
+};
+
 const parseContent = <T>(
   content: string | null | undefined,
   parser: z.ZodType<T>,
@@ -271,6 +287,7 @@ export const createGenericGroqExtractors = ({
             parser,
             ERROR_CODES.GENERIC_EXTRACTION_OUTPUT_INVALID,
             "extraction",
+            (value) => normalizeProviderValuesResult(value, documentSchema),
           );
         } catch (error) {
           if (attempt === 0 && error instanceof AppError) {

@@ -205,8 +205,17 @@ export const buildGenericExtractionJsonSchema = (
     };
   }
 
-  return closedObject({
-    fields: closedObject(fieldProperties),
-    tables: closedObject(tableProperties),
-  });
+  const valueProperties: Record<string, JsonValue> = {};
+  if (Object.keys(fieldProperties).length > 0) {
+    valueProperties.fields = closedObject(fieldProperties);
+  }
+  if (Object.keys(tableProperties).length > 0) {
+    valueProperties.tables = closedObject(tableProperties);
+  }
+
+  if (Object.keys(valueProperties).length === 0) {
+    throw new Error("A discovered document schema must contain at least one field or table.");
+  }
+
+  return closedObject(valueProperties);
 };
