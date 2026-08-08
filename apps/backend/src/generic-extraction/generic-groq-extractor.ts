@@ -63,7 +63,7 @@ interface CompleteWithBackoffOptions {
   readonly logger: Logger;
   readonly schema: JsonObject;
   readonly schemaName: string;
-  readonly signal?: AbortSignal;
+  readonly signal: AbortSignal | undefined;
   readonly stage: "discovery" | "extraction";
   readonly system: string;
   readonly userMessage: (content: string) => string;
