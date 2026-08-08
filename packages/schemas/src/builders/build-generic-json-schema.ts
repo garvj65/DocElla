@@ -178,7 +178,7 @@ const fieldValueProviderSchema = (field: DiscoveredField): JsonObject => {
   if (!field.repeatable) return nullableScalarProviderSchema(field);
   return {
     items: scalarProviderSchema(field),
-    type: ["array", "null"],
+    type: "array",
   };
 };
 
