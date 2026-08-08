@@ -31,7 +31,7 @@ const makeField = (index: number) => ({
   description: `Synthetic field ${String(index)} for a larger business document.`,
   id: `field_${String(index).padStart(2, "0")}`,
   label: `Field ${String(index)}`,
-  repeatable: false,
+  repeatable: index === 1,
   required: false,
   valueType: "text" as const,
 });
@@ -86,7 +86,10 @@ const providerResponseFor = (schema: JsonObject): string => {
 
   const fieldProperties = asRecord(asRecord(fieldsSchema).properties);
   const fields = Object.fromEntries(
-    Object.keys(fieldProperties).map((fieldId) => [fieldId, `value_for_${fieldId}`]),
+    Object.entries(fieldProperties).map(([fieldId, fieldSchema]) => {
+      const type = asRecord(fieldSchema).type;
+      return [fieldId, type === "array" ? [] : `value_for_${fieldId}`];
+    }),
   );
   return JSON.stringify({ fields });
 };
@@ -116,7 +119,7 @@ describe("generic real-document extraction batching", () => {
     }
   });
 
-  it("extracts each bounded batch and merges the values into the full document contract", async () => {
+  it("extracts bounded batches, normalizes empty repeatables, and merges the full contract", async () => {
     const captured: GroqCompletionCreateRequest[] = [];
     const client: GroqChatClient = {
       chat: {
@@ -143,7 +146,8 @@ describe("generic real-document extraction batching", () => {
     expect(captured).toHaveLength(3);
     expect(Object.keys(values.fields)).toHaveLength(52);
     expect(values.tables).toEqual({});
-    expect(values.fields.field_01).toBe("value_for_field_01");
+    expect(values.fields.field_01).toBeNull();
+    expect(values.fields.field_02).toBe("value_for_field_02");
     expect(values.fields.field_52).toBe("value_for_field_52");
     expect(
       captured.every(
