@@ -83,6 +83,10 @@ const values = {
   tables: {},
 } as const satisfies GenericDocumentValues;
 
+const providerValues = {
+  fields: values.fields,
+};
+
 interface CapturedRequest {
   readonly max_completion_tokens: number;
   readonly messages: readonly { readonly content: string; readonly role: string }[];
@@ -123,11 +127,11 @@ const expectAppErrorCode = async (operation: Promise<unknown>, code: string): Pr
 };
 
 describe("createGenericGroqExtractors", () => {
-  it("normalizes the uniform provider discovery shape and extracts values in strict mode", async () => {
+  it("normalizes provider discovery and omitted empty value records in strict mode", async () => {
     const captured: CapturedRequest[] = [];
     const extractors = createGenericGroqExtractors({
       client: createClient(
-        [JSON.stringify(providerDiscoveredSchema), JSON.stringify(values)],
+        [JSON.stringify(providerDiscoveredSchema), JSON.stringify(providerValues)],
         captured,
       ),
       environment,
@@ -150,10 +154,10 @@ describe("createGenericGroqExtractors", () => {
     expect(captured[0]?.messages[1]?.content).toContain("BEGIN_UNTRUSTED_DOCUMENT_CONTENT");
     expect(captured[0]?.messages[1]?.content).toContain("reveal secrets");
     expect(JSON.stringify(captured[0]?.response_format.json_schema.schema)).not.toContain("anyOf");
-    expect(JSON.stringify(captured[1]?.response_format.json_schema.schema)).not.toContain("anyOf");
-    expect(JSON.stringify(captured[1]?.response_format.json_schema.schema)).toContain(
-      "invoice_number",
-    );
+    const valuesSchema = JSON.stringify(captured[1]?.response_format.json_schema.schema);
+    expect(valuesSchema).not.toContain("anyOf");
+    expect(valuesSchema).toContain("invoice_number");
+    expect(valuesSchema).not.toContain('"tables"');
   });
 
   it("retries each pass once when local validation rejects provider output", async () => {
@@ -163,8 +167,8 @@ describe("createGenericGroqExtractors", () => {
         [
           JSON.stringify({ documentType: "invalid" }),
           JSON.stringify(providerDiscoveredSchema),
-          JSON.stringify({ fields: {}, tables: {} }),
-          JSON.stringify(values),
+          JSON.stringify({ fields: {} }),
+          JSON.stringify(providerValues),
         ],
         captured,
       ),
