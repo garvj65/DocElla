@@ -21,9 +21,13 @@ import {
   buildGenericExtractionSystemInstruction,
   buildGenericExtractionUserMessage,
 } from "./generic-extraction-prompt.js";
+import {
+  genericProviderBudgets,
+  sampleGenericProviderContent,
+} from "./generic-provider-budget.js";
 import type { GenericSchemaDiscoverer, GenericValueExtractor } from "./generic-extraction-types.js";
 
-const GENERIC_COMPLETION_TOKENS = 8_192 as const;
+const GENERIC_COMPLETION_TOKENS = 4_096 as const;
 
 export interface CreateGenericGroqExtractorsOptions {
   readonly client: GroqChatClient;
@@ -55,6 +59,19 @@ interface GenericCompletionRequest {
   readonly temperature: 0;
 }
 
+interface CompleteWithBackoffOptions {
+  readonly client: GroqChatClient;
+  readonly content: string;
+  readonly environment: Environment;
+  readonly logger: Logger;
+  readonly schema: JsonObject;
+  readonly schemaName: string;
+  readonly signal?: AbortSignal;
+  readonly stage: "discovery" | "extraction";
+  readonly system: string;
+  readonly userMessage: (content: string) => string;
+}
+
 const throwIfAborted = (signal: AbortSignal | undefined): void => {
   if (signal?.aborted === true) {
     throw new ExtractionAbortedError();
@@ -63,9 +80,6 @@ const throwIfAborted = (signal: AbortSignal | undefined): void => {
 
 const safeSchemaName = (value: string): string =>
   `docella_${value.replace(/[^A-Za-z0-9_]/gu, "_").slice(0, 48)}`;
-
-const providerContent = (content: string, environment: Environment): string =>
-  content.slice(0, environment.groqMaxInputCharacters);
 
 const requestOptions = (
   signal: AbortSignal | undefined,
@@ -208,6 +222,68 @@ const complete = async (
   }
 };
 
+const isProviderPayloadTooLarge = (error: unknown): error is AppError =>
+  error instanceof AppError && error.safeLogContext?.providerHttpStatus === 413;
+
+const completeWithPayloadBackoff = async ({
+  client,
+  content,
+  environment,
+  logger,
+  schema,
+  schemaName,
+  signal,
+  stage,
+  system,
+  userMessage,
+}: CompleteWithBackoffOptions): Promise<string | null | undefined> => {
+  const budgets = genericProviderBudgets(environment);
+  let previousInputLength: number | undefined;
+
+  for (let index = 0; index < budgets.length; index += 1) {
+    const budget = budgets[index];
+    if (budget === undefined) continue;
+    const sampledContent = sampleGenericProviderContent(content, budget);
+    if (sampledContent.length === previousInputLength) continue;
+    previousInputLength = sampledContent.length;
+
+    try {
+      return await complete(
+        client,
+        environment,
+        buildRequest(environment, schemaName, schema, system, userMessage(sampledContent)),
+        signal,
+      );
+    } catch (error) {
+      const nextBudget = budgets.slice(index + 1).find((candidate) => candidate < sampledContent.length);
+      if (!isProviderPayloadTooLarge(error) || nextBudget === undefined) throw error;
+
+      logger.warn(
+        {
+          event: "generic_provider_payload_backoff",
+          genericExtractionStage: stage,
+          nextProviderInputCharacters: nextBudget,
+          providerHttpStatus: 413,
+          providerInputCharacters: sampledContent.length,
+          providerModel: environment.groqModel,
+        },
+        "Generic extraction provider rejected an oversized request; retrying with less document content",
+      );
+    }
+  }
+
+  throw new AppError({
+    code: ERROR_CODES.EXTRACTION_PROVIDER_UNAVAILABLE,
+    message: "The extraction provider rejected the request.",
+    safeLogContext: {
+      genericExtractionStage: stage,
+      providerHttpStatus: 413,
+      providerModel: environment.groqModel,
+    },
+    status: 502,
+  });
+};
+
 const warnRetry = (
   logger: Logger,
   environment: Environment,
@@ -230,20 +306,19 @@ export const createGenericGroqExtractors = ({
 }: CreateGenericGroqExtractorsOptions): GenericGroqExtractors => ({
   schemaDiscoverer: {
     discover: async ({ layout, signal }): Promise<DiscoveredDocumentSchema> => {
-      const content = providerContent(layout.content, environment);
       for (const attempt of [0, 1] as const) {
-        const response = await complete(
+        const response = await completeWithPayloadBackoff({
           client,
+          content: layout.content,
           environment,
-          buildRequest(
-            environment,
-            "generic_schema_discovery_v1",
-            buildGenericDiscoveryJsonSchema(),
-            buildGenericDiscoverySystemInstruction(),
-            buildGenericDiscoveryUserMessage(layout, content, attempt === 1),
-          ),
+          logger,
+          schema: buildGenericDiscoveryJsonSchema(),
+          schemaName: "generic_schema_discovery_v1",
           signal,
-        );
+          stage: "discovery",
+          system: buildGenericDiscoverySystemInstruction(),
+          userMessage: (content) => buildGenericDiscoveryUserMessage(layout, content, attempt === 1),
+        });
         try {
           return parseContent(
             response,
@@ -266,21 +341,20 @@ export const createGenericGroqExtractors = ({
   },
   valueExtractor: {
     extract: async ({ documentSchema, layout, signal }): Promise<GenericDocumentValues> => {
-      const content = providerContent(layout.content, environment);
       const parser = buildGenericDocumentExtractionValuesSchema(documentSchema);
       for (const attempt of [0, 1] as const) {
-        const response = await complete(
+        const response = await completeWithPayloadBackoff({
           client,
+          content: layout.content,
           environment,
-          buildRequest(
-            environment,
-            `generic_values_${documentSchema.documentType}_v1`,
-            buildGenericExtractionJsonSchema(documentSchema),
-            buildGenericExtractionSystemInstruction(documentSchema),
-            buildGenericExtractionUserMessage(layout, content, attempt === 1),
-          ),
+          logger,
+          schema: buildGenericExtractionJsonSchema(documentSchema),
+          schemaName: `generic_values_${documentSchema.documentType}_v1`,
           signal,
-        );
+          stage: "extraction",
+          system: buildGenericExtractionSystemInstruction(documentSchema),
+          userMessage: (content) => buildGenericExtractionUserMessage(layout, content, attempt === 1),
+        });
         try {
           return parseContent(
             response,
