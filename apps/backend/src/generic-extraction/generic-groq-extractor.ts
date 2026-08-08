@@ -14,10 +14,7 @@ import type { Environment } from "../config/environment.js";
 import { AppError } from "../errors/app-error.js";
 import { ERROR_CODES } from "../errors/error-codes.js";
 import { ExtractionAbortedError } from "../errors/extraction-aborted-error.js";
-import {
-  mapProviderError,
-  type GroqChatClient,
-} from "../extraction/groq-structured-extractor.js";
+import { mapProviderError, type GroqChatClient } from "../extraction/groq-structured-extractor.js";
 import {
   buildGenericDiscoverySystemInstruction,
   buildGenericDiscoveryUserMessage,
