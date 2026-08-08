@@ -8,6 +8,8 @@ import type { JsonObject, JsonValue } from "./build-json-schema.js";
 
 type JsonProperties = Readonly<Record<string, JsonValue>>;
 
+type PrimitiveJsonType = "string" | "number" | "boolean";
+
 const closedObject = (properties: JsonProperties): JsonObject => ({
   additionalProperties: false,
   properties,
@@ -15,36 +17,43 @@ const closedObject = (properties: JsonProperties): JsonObject => ({
   type: "object",
 });
 
-const nullable = (schema: JsonObject): JsonObject => ({
-  anyOf: [schema, { type: "null" }],
-});
+const primitiveSchema = (type: PrimitiveJsonType): JsonObject => ({ type });
 
-const stringSchema = (): JsonObject => ({ type: "string" });
-const numberSchema = (): JsonObject => ({ type: "number" });
-const booleanSchema = (): JsonObject => ({ type: "boolean" });
+const nullablePrimitiveSchema = (type: PrimitiveJsonType): JsonObject => ({
+  type: [type, "null"],
+});
 
 const enumSchema = (values: readonly string[]): JsonObject => ({
   enum: [...values],
   type: "string",
 });
 
-const genericIdentifierProviderSchema = (): JsonObject => stringSchema();
-const boundedLabelProviderSchema = (): JsonObject => stringSchema();
-const boundedDescriptionProviderSchema = (): JsonObject => stringSchema();
+const nullableEnumSchema = (values: readonly string[]): JsonObject => ({
+  enum: [...values, null],
+  type: ["string", "null"],
+});
+
+const genericIdentifierProviderSchema = (): JsonObject => primitiveSchema("string");
+const boundedLabelProviderSchema = (): JsonObject => primitiveSchema("string");
+const boundedDescriptionProviderSchema = (): JsonObject => primitiveSchema("string");
 
 const selectOptionProviderSchema = (): JsonObject =>
   closedObject({
-    label: stringSchema(),
-    value: stringSchema(),
+    label: primitiveSchema("string"),
+    value: primitiveSchema("string"),
   });
 
-const nonSelectFieldProviderSchema = (): JsonObject =>
+const discoveredFieldProviderSchema = (): JsonObject =>
   closedObject({
     description: boundedDescriptionProviderSchema(),
     id: genericIdentifierProviderSchema(),
     label: boundedLabelProviderSchema(),
-    repeatable: booleanSchema(),
-    required: booleanSchema(),
+    options: {
+      items: selectOptionProviderSchema(),
+      type: "array",
+    },
+    repeatable: primitiveSchema("boolean"),
+    required: primitiveSchema("boolean"),
     valueType: enumSchema([
       "text",
       "long_text",
@@ -56,26 +65,9 @@ const nonSelectFieldProviderSchema = (): JsonObject =>
       "phone",
       "address",
       "identifier",
+      "select",
     ]),
   });
-
-const selectFieldProviderSchema = (): JsonObject =>
-  closedObject({
-    description: boundedDescriptionProviderSchema(),
-    id: genericIdentifierProviderSchema(),
-    label: boundedLabelProviderSchema(),
-    options: {
-      items: selectOptionProviderSchema(),
-      type: "array",
-    },
-    repeatable: booleanSchema(),
-    required: booleanSchema(),
-    valueType: enumSchema(["select"]),
-  });
-
-const discoveredFieldProviderSchema = (): JsonObject => ({
-  anyOf: [nonSelectFieldProviderSchema(), selectFieldProviderSchema()],
-});
 
 const discoveredSectionProviderSchema = (): JsonObject =>
   closedObject({
@@ -93,7 +85,7 @@ const tableColumnProviderSchema = (): JsonObject =>
     description: boundedDescriptionProviderSchema(),
     id: genericIdentifierProviderSchema(),
     label: boundedLabelProviderSchema(),
-    required: booleanSchema(),
+    required: primitiveSchema("boolean"),
     valueType: enumSchema([
       "text",
       "number",
@@ -122,7 +114,7 @@ export const buildGenericDiscoveryJsonSchema = (): JsonObject =>
   closedObject({
     documentType: genericIdentifierProviderSchema(),
     documentTypeLabel: boundedLabelProviderSchema(),
-    language: nullable(stringSchema()),
+    language: nullablePrimitiveSchema("string"),
     schemaVersion: {
       enum: [1],
       type: "integer",
@@ -135,16 +127,16 @@ export const buildGenericDiscoveryJsonSchema = (): JsonObject =>
       items: discoveredTableProviderSchema(),
       type: "array",
     },
-    title: nullable(stringSchema()),
+    title: nullablePrimitiveSchema("string"),
   });
 
 const scalarProviderSchema = (definition: DiscoveredField | DiscoveredTableColumn): JsonObject => {
   switch (definition.valueType) {
     case "number":
     case "currency":
-      return numberSchema();
+      return primitiveSchema("number");
     case "boolean":
-      return booleanSchema();
+      return primitiveSchema("boolean");
     case "select":
       return enumSchema(definition.options.map((option: GenericSelectOption) => option.value));
     case "text":
@@ -154,23 +146,46 @@ const scalarProviderSchema = (definition: DiscoveredField | DiscoveredTableColum
     case "phone":
     case "address":
     case "identifier":
-      return stringSchema();
+      return primitiveSchema("string");
+  }
+};
+
+const nullableScalarProviderSchema = (
+  definition: DiscoveredField | DiscoveredTableColumn,
+): JsonObject => {
+  switch (definition.valueType) {
+    case "number":
+    case "currency":
+      return nullablePrimitiveSchema("number");
+    case "boolean":
+      return nullablePrimitiveSchema("boolean");
+    case "select":
+      return nullableEnumSchema(
+        definition.options.map((option: GenericSelectOption) => option.value),
+      );
+    case "text":
+    case "long_text":
+    case "date":
+    case "email":
+    case "phone":
+    case "address":
+    case "identifier":
+      return nullablePrimitiveSchema("string");
   }
 };
 
 const fieldValueProviderSchema = (field: DiscoveredField): JsonObject => {
-  const scalar = scalarProviderSchema(field);
-  if (!field.repeatable) return nullable(scalar);
-  return nullable({
-    items: scalar,
-    type: "array",
-  });
+  if (!field.repeatable) return nullableScalarProviderSchema(field);
+  return {
+    items: scalarProviderSchema(field),
+    type: ["array", "null"],
+  };
 };
 
 const tableRowProviderSchema = (columns: readonly DiscoveredTableColumn[]): JsonObject =>
   closedObject(
     Object.fromEntries(
-      columns.map((column) => [column.id, nullable(scalarProviderSchema(column))]),
+      columns.map((column) => [column.id, nullableScalarProviderSchema(column)]),
     ),
   );
 
