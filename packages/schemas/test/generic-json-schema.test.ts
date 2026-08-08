@@ -108,7 +108,7 @@ const assertGroqStrictCompatible = (schemaValue: JsonValue, path = "$root"): voi
 };
 
 describe("generic provider JSON Schemas", () => {
-  it("generates a Groq strict-compatible discovery schema", () => {
+  it("generates a simple Groq strict-compatible discovery schema", () => {
     const discovery = buildGenericDiscoveryJsonSchema();
     const serialized = JSON.stringify(discovery);
 
@@ -117,12 +117,14 @@ describe("generic provider JSON Schemas", () => {
     expect(serialized).toContain("documentType");
     expect(serialized).toContain("sections");
     expect(serialized).toContain("tables");
+    expect(serialized).toContain("options");
     expect(serialized).not.toContain("~standard");
     expect(serialized).not.toContain('"format"');
+    expect(serialized).not.toContain('"anyOf"');
     assertGroqStrictCompatible(discovery);
   });
 
-  it("generates an exact Groq strict-compatible values schema", () => {
+  it("generates an exact simple Groq strict-compatible values schema", () => {
     const extraction = buildGenericExtractionJsonSchema(schema);
     const serialized = JSON.stringify(extraction);
 
@@ -136,6 +138,7 @@ describe("generic provider JSON Schemas", () => {
     expect(serialized).toContain("amount");
     expect(serialized).not.toContain("~standard");
     expect(serialized).not.toContain('"format"');
+    expect(serialized).not.toContain('"anyOf"');
     assertGroqStrictCompatible(extraction);
   });
 });

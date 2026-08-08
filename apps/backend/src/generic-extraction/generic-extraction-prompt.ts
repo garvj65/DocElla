@@ -25,6 +25,7 @@ export const buildGenericDiscoverySystemInstruction = (): string =>
     "Do not create one field for every sentence, paragraph, decorative label, or empty placeholder.",
     "Do not invent fields that are unsupported by the document.",
     "Required means structurally essential for this detected document type, not merely present in this one file.",
+    "Every field must include an options array. Use a non-empty options array only when valueType is select; use [] for every non-select field.",
     "Use select fields only when the document itself establishes a small closed set of allowed values.",
     `Use no more than ${String(GENERIC_DOCUMENT_LIMITS.maxSections)} sections, ${String(
       GENERIC_DOCUMENT_LIMITS.maxTotalFields,
@@ -45,7 +46,7 @@ export const buildGenericDiscoveryUserMessage = (
     `Content unit: ${layout.contentUnit}`,
     `Content unit count: ${String(layout.contentUnitCount)}`,
     correction
-      ? "The previous schema failed local validation. Return a corrected bounded schema with unique identifiers and exact JSON Schema compliance."
+      ? "The previous schema failed local validation. Return a corrected bounded schema with unique identifiers, empty options arrays for non-select fields, and exact JSON Schema compliance."
       : "Discover the most useful bounded form schema for this document.",
     untrustedDocument(content),
   ].join("\n");

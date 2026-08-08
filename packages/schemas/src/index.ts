@@ -121,6 +121,7 @@ export {
   type JsonPrimitive,
   type JsonValue,
 } from "./builders/build-json-schema.js";
+export { buildProviderExtractionJsonSchema } from "./builders/build-provider-json-schema.js";
 export {
   buildPublicDocumentConfig,
   buildPublicDocumentSummary,

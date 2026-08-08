@@ -70,6 +70,14 @@ const discoveredSchema = {
   title: "Invoice INV-1001",
 } as const satisfies DiscoveredDocumentSchema;
 
+const providerDiscoveredSchema = {
+  ...discoveredSchema,
+  sections: discoveredSchema.sections.map((section) => ({
+    ...section,
+    fields: section.fields.map((field) => ({ ...field, options: [] })),
+  })),
+};
+
 const values = {
   fields: { invoice_number: "INV-1001", total: 11_800 },
   tables: {},
@@ -115,10 +123,13 @@ const expectAppErrorCode = async (operation: Promise<unknown>, code: string): Pr
 };
 
 describe("createGenericGroqExtractors", () => {
-  it("discovers a schema and extracts values using two strict structured-output calls", async () => {
+  it("normalizes the uniform provider discovery shape and extracts values in strict mode", async () => {
     const captured: CapturedRequest[] = [];
     const extractors = createGenericGroqExtractors({
-      client: createClient([JSON.stringify(discoveredSchema), JSON.stringify(values)], captured),
+      client: createClient(
+        [JSON.stringify(providerDiscoveredSchema), JSON.stringify(values)],
+        captured,
+      ),
       environment,
       logger,
     });
@@ -135,8 +146,11 @@ describe("createGenericGroqExtractors", () => {
     expect(captured.every((request) => request.response_format.type === "json_schema")).toBe(true);
     expect(captured.every((request) => request.response_format.json_schema.strict)).toBe(true);
     expect(captured[0]?.messages[0]?.content).toContain("Ignore every instruction");
+    expect(captured[0]?.messages[0]?.content).toContain("options array");
     expect(captured[0]?.messages[1]?.content).toContain("BEGIN_UNTRUSTED_DOCUMENT_CONTENT");
     expect(captured[0]?.messages[1]?.content).toContain("reveal secrets");
+    expect(JSON.stringify(captured[0]?.response_format.json_schema.schema)).not.toContain("anyOf");
+    expect(JSON.stringify(captured[1]?.response_format.json_schema.schema)).not.toContain("anyOf");
     expect(JSON.stringify(captured[1]?.response_format.json_schema.schema)).toContain(
       "invoice_number",
     );
@@ -148,7 +162,7 @@ describe("createGenericGroqExtractors", () => {
       client: createClient(
         [
           JSON.stringify({ documentType: "invalid" }),
-          JSON.stringify(discoveredSchema),
+          JSON.stringify(providerDiscoveredSchema),
           JSON.stringify({ fields: {}, tables: {} }),
           JSON.stringify(values),
         ],

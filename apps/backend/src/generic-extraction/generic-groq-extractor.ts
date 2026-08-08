@@ -14,11 +14,7 @@ import type { Environment } from "../config/environment.js";
 import { AppError } from "../errors/app-error.js";
 import { ERROR_CODES } from "../errors/error-codes.js";
 import { ExtractionAbortedError } from "../errors/extraction-aborted-error.js";
-import {
-  mapProviderError,
-  type GroqChatClient,
-  type GroqCompletionCreateRequest,
-} from "../extraction/groq-structured-extractor.js";
+import { mapProviderError, type GroqChatClient } from "../extraction/groq-structured-extractor.js";
 import {
   buildGenericDiscoverySystemInstruction,
   buildGenericDiscoveryUserMessage,
@@ -94,6 +90,31 @@ const invalidOutput = (
     status: 502,
   });
 
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isUnknownArray = (value: unknown): value is readonly unknown[] => Array.isArray(value);
+
+const normalizeProviderDiscoveryResult = (value: unknown): unknown => {
+  if (!isRecord(value) || !isUnknownArray(value.sections)) return value;
+
+  return {
+    ...value,
+    sections: value.sections.map((section) => {
+      if (!isRecord(section) || !isUnknownArray(section.fields)) return section;
+      return {
+        ...section,
+        fields: section.fields.map((field) => {
+          if (!isRecord(field) || field.valueType === "select") return field;
+          const { options: _options, ...normalizedField } = field;
+          void _options;
+          return normalizedField;
+        }),
+      };
+    }),
+  };
+};
+
 const parseContent = <T>(
   content: string | null | undefined,
   parser: z.ZodType<T>,
@@ -101,6 +122,7 @@ const parseContent = <T>(
     | typeof ERROR_CODES.GENERIC_SCHEMA_DISCOVERY_INVALID
     | typeof ERROR_CODES.GENERIC_EXTRACTION_OUTPUT_INVALID,
   stage: "discovery" | "extraction",
+  normalize: (value: unknown) => unknown = (value) => value,
 ): T => {
   if (content === undefined || content === null || content.trim().length === 0) {
     throw invalidOutput(code, stage);
@@ -113,7 +135,7 @@ const parseContent = <T>(
     throw invalidOutput(code, stage, error);
   }
 
-  const result = parser.safeParse(parsed);
+  const result = parser.safeParse(normalize(parsed));
   if (!result.success) {
     throw invalidOutput(code, stage, result.error);
   }
@@ -153,10 +175,7 @@ const complete = async (
 ): Promise<string | null | undefined> => {
   try {
     throwIfAborted(signal);
-    const completion = await client.chat.completions.create(
-      request as unknown as GroqCompletionCreateRequest,
-      requestOptions(signal),
-    );
+    const completion = await client.chat.completions.create(request, requestOptions(signal));
     throwIfAborted(signal);
     const message = completion.choices?.[0]?.message;
     if (message?.refusal !== undefined && message.refusal !== null) {
@@ -215,6 +234,7 @@ export const createGenericGroqExtractors = ({
             discoveredDocumentSchemaSchema,
             ERROR_CODES.GENERIC_SCHEMA_DISCOVERY_INVALID,
             "discovery",
+            normalizeProviderDiscoveryResult,
           );
         } catch (error) {
           if (attempt === 0 && error instanceof AppError) {
