@@ -140,6 +140,25 @@ const normalizeProviderDiscoveryResult = (value: unknown): unknown => {
   };
 };
 
+const normalizeRepeatableProviderFields = (
+  value: unknown,
+  documentSchema: DiscoveredDocumentSchema,
+): unknown => {
+  if (!isRecord(value)) return value;
+
+  const normalized: Record<string, unknown> = { ...value };
+  for (const section of documentSchema.sections) {
+    for (const field of section.fields) {
+      if (!field.repeatable) continue;
+      const fieldValue = normalized[field.id];
+      if (isUnknownArray(fieldValue) && fieldValue.length === 0) {
+        normalized[field.id] = null;
+      }
+    }
+  }
+  return normalized;
+};
+
 const normalizeProviderValuesResult = (
   value: unknown,
   documentSchema: DiscoveredDocumentSchema,
@@ -151,7 +170,9 @@ const normalizeProviderValuesResult = (
 
   return {
     ...value,
-    ...(hasFields ? {} : { fields: {} }),
+    ...(hasFields
+      ? { fields: normalizeRepeatableProviderFields(value.fields, documentSchema) }
+      : { fields: {} }),
     ...(hasTables ? {} : { tables: {} }),
   };
 };
@@ -312,6 +333,36 @@ const warnRetry = (
   );
 };
 
+const logBatchProviderFailure = (
+  logger: Logger,
+  environment: Environment,
+  batch: GenericExtractionBatch,
+  error: AppError,
+): void => {
+  const fieldCount = batch.schema.sections.reduce(
+    (total, section) => total + section.fields.length,
+    0,
+  );
+  const repeatableFieldCount = batch.schema.sections.reduce(
+    (total, section) => total + section.fields.filter((field) => field.repeatable).length,
+    0,
+  );
+
+  logger.warn(
+    {
+      code: error.code,
+      event: "generic_extraction_provider_batch_failed",
+      genericExtractionBatch: batch.id,
+      genericExtractionFieldCount: fieldCount,
+      genericExtractionRepeatableFieldCount: repeatableFieldCount,
+      genericExtractionTableCount: batch.schema.tables.length,
+      providerHttpStatus: error.safeLogContext?.providerHttpStatus,
+      providerModel: environment.groqModel,
+    },
+    "Generic extraction provider rejected a bounded extraction batch",
+  );
+};
+
 const extractBatchValues = async ({
   batch,
   client,
@@ -324,19 +375,27 @@ const extractBatchValues = async ({
   const parser = buildGenericDocumentExtractionValuesSchema(batch.schema);
 
   for (const attempt of [0, 1] as const) {
-    const response = await completeWithPayloadBackoff({
-      client,
-      content,
-      environment,
-      logger,
-      schema: buildGenericExtractionJsonSchema(batch.schema),
-      schemaName: `generic_values_${batch.schema.documentType}_${batch.id}_v1`,
-      signal,
-      stage: "extraction",
-      system: buildGenericExtractionSystemInstruction(batch.schema),
-      userMessage: (sampledContent) =>
-        buildGenericExtractionUserMessage(layout, sampledContent, attempt === 1),
-    });
+    let response: string | null | undefined;
+    try {
+      response = await completeWithPayloadBackoff({
+        client,
+        content,
+        environment,
+        logger,
+        schema: buildGenericExtractionJsonSchema(batch.schema),
+        schemaName: `generic_values_${batch.schema.documentType}_${batch.id}_v1`,
+        signal,
+        stage: "extraction",
+        system: buildGenericExtractionSystemInstruction(batch.schema),
+        userMessage: (sampledContent) =>
+          buildGenericExtractionUserMessage(layout, sampledContent, attempt === 1),
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        logBatchProviderFailure(logger, environment, batch, error);
+      }
+      throw error;
+    }
 
     try {
       return parseContent(
