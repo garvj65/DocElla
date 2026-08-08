@@ -1,6 +1,7 @@
 import type { Environment } from "../config/environment.js";
 import type { DocumentLayoutService } from "../document-layout/document-layout-types.js";
 import { ExtractionAbortedError } from "../errors/extraction-aborted-error.js";
+import { genericProviderInputLimit } from "./generic-provider-budget.js";
 import type {
   GenericDocumentExtractionService,
   GenericGroundingService,
@@ -49,7 +50,7 @@ export const createGenericDocumentExtractionService = ({
 
     return groundingService.ground({
       documentSchema,
-      inputTruncated: layout.content.length > environment.groqMaxInputCharacters,
+      inputTruncated: layout.content.length > genericProviderInputLimit(environment),
       layout,
       values,
     });
