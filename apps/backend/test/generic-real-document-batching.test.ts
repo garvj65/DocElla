@@ -101,10 +101,12 @@ describe("generic real-document extraction batching", () => {
         (total, section) => total + section.fields.length,
         0,
       );
+      const providerSchemaLength = JSON.stringify(
+        buildGenericExtractionJsonSchema(batch.schema),
+      ).length;
+
       expect(fieldCount).toBeLessThanOrEqual(GENERIC_EXTRACTION_MAX_FIELDS_PER_BATCH);
-      expect(JSON.stringify(buildGenericExtractionJsonSchema(batch.schema)).length).toBeLessThanOrEqual(
-        GENERIC_EXTRACTION_MAX_SCHEMA_CHARACTERS,
-      );
+      expect(providerSchemaLength).toBeLessThanOrEqual(GENERIC_EXTRACTION_MAX_SCHEMA_CHARACTERS);
     }
   });
 
