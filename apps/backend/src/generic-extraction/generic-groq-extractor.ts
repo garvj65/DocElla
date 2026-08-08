@@ -17,7 +17,6 @@ import { ExtractionAbortedError } from "../errors/extraction-aborted-error.js";
 import {
   mapProviderError,
   type GroqChatClient,
-  type GroqCompletionCreateRequest,
 } from "../extraction/groq-structured-extractor.js";
 import {
   buildGenericDiscoverySystemInstruction,
@@ -97,13 +96,15 @@ const invalidOutput = (
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const isUnknownArray = (value: unknown): value is readonly unknown[] => Array.isArray(value);
+
 const normalizeProviderDiscoveryResult = (value: unknown): unknown => {
-  if (!isRecord(value) || !Array.isArray(value.sections)) return value;
+  if (!isRecord(value) || !isUnknownArray(value.sections)) return value;
 
   return {
     ...value,
     sections: value.sections.map((section) => {
-      if (!isRecord(section) || !Array.isArray(section.fields)) return section;
+      if (!isRecord(section) || !isUnknownArray(section.fields)) return section;
       return {
         ...section,
         fields: section.fields.map((field) => {
@@ -177,10 +178,7 @@ const complete = async (
 ): Promise<string | null | undefined> => {
   try {
     throwIfAborted(signal);
-    const completion = await client.chat.completions.create(
-      request as unknown as GroqCompletionCreateRequest,
-      requestOptions(signal),
-    );
+    const completion = await client.chat.completions.create(request, requestOptions(signal));
     throwIfAborted(signal);
     const message = completion.choices?.[0]?.message;
     if (message?.refusal !== undefined && message.refusal !== null) {
