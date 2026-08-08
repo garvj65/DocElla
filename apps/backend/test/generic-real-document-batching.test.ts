@@ -44,9 +44,15 @@ const largeDocumentSchema = {
   sections: [
     {
       description: "A deliberately large scalar section.",
-      fields: Array.from({ length: 52 }, (_, index) => makeField(index + 1)),
+      fields: Array.from({ length: 50 }, (_, index) => makeField(index + 1)),
       id: "profile",
       label: "Profile",
+    },
+    {
+      description: "A small trailing section.",
+      fields: [makeField(51), makeField(52)],
+      id: "supplemental",
+      label: "Supplemental",
     },
   ],
   tables: [],
