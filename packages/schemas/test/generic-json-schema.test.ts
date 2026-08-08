@@ -91,9 +91,10 @@ const assertGroqStrictCompatible = (schemaValue: JsonValue, path = "$root"): voi
 
   const properties = schemaValue.properties;
   if (isObject(properties)) {
-    expect(Object.keys(properties).length, `${path} must not be an empty object schema`).toBeGreaterThan(
-      0,
-    );
+    expect(
+      Object.keys(properties).length,
+      `${path} must not be an empty object schema`,
+    ).toBeGreaterThan(0);
     expect(schemaValue.additionalProperties, `${path} must be closed`).toBe(false);
     const expectedRequired = Object.keys(properties).sort();
     const required = schemaValue.required;
