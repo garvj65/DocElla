@@ -10,7 +10,7 @@ import {
 } from "groq-sdk";
 import {
   buildExtractionSchema,
-  buildJsonSchema,
+  buildProviderExtractionJsonSchema,
   type DocumentDefinition,
   type ExtractionData,
   type JsonObject,
@@ -53,7 +53,7 @@ export interface GroqChatClient {
 }
 
 export interface GroqCompletionCreateRequest {
-  readonly max_completion_tokens: typeof MAX_COMPLETION_TOKENS;
+  readonly max_completion_tokens: number;
   readonly messages: readonly GroqCompletionMessage[];
   readonly model: string;
   readonly response_format: {
@@ -109,7 +109,7 @@ export const buildGroqCompletionRequest = (
   response_format: {
     json_schema: {
       name: safeSchemaName(documentDefinition),
-      schema: buildJsonSchema(documentDefinition),
+      schema: buildProviderExtractionJsonSchema(documentDefinition),
       strict: true,
     },
     type: "json_schema",
