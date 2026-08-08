@@ -184,9 +184,7 @@ const fieldValueProviderSchema = (field: DiscoveredField): JsonObject => {
 
 const tableRowProviderSchema = (columns: readonly DiscoveredTableColumn[]): JsonObject =>
   closedObject(
-    Object.fromEntries(
-      columns.map((column) => [column.id, nullableScalarProviderSchema(column)]),
-    ),
+    Object.fromEntries(columns.map((column) => [column.id, nullableScalarProviderSchema(column)])),
   );
 
 export const buildGenericExtractionJsonSchema = (
