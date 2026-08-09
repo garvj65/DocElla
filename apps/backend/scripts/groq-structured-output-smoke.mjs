@@ -64,7 +64,9 @@ if (apiKey === undefined || apiKey.length === 0) {
   } catch (error) {
     const record = typeof error === "object" && error !== null ? error : {};
     const body =
-      typeof record.error === "object" && record.error !== null ? record.error : undefined;
+      typeof record.error === "object" && record.error !== null
+        ? record.error
+        : undefined;
     const providerError =
       body !== undefined && typeof body.error === "object" && body.error !== null
         ? body.error
