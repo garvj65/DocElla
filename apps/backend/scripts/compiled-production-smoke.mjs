@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 
 import pino from "pino";
+import { PDFDocument } from "pdf-lib";
 import request from "supertest";
 
 const { createApp } = await import("../dist/app.js");
@@ -65,18 +66,20 @@ const missingApi = await request(app).get("/api/release-smoke-missing").expect(4
 assert.equal(missingApi.body.error.code, "ROUTE_NOT_FOUND");
 
 const values = {
-  additionalNotes: null,
-  address: "1 Release Test Street",
-  availableStartDate: null,
-  currentEmployer: null,
-  currentJobTitle: null,
+  additionalNotes:
+    "Open to customer-facing implementation work, cross-functional discovery, and relocation. Comfortable documenting technical decisions and iterating with engineering and product teams.",
+  address:
+    "10, 3rd Cross, Behind Skyline Apartment\nNisarga Layout, Chandra Layout\nBengaluru, Karnataka 560040",
+  availableStartDate: "2026-08-20",
+  currentEmployer: "Truffl",
+  currentJobTitle: "AI Research Engineer Intern",
   email: "release@example.test",
   fullName: "Release Candidate",
-  highestEducation: null,
-  phone: "+1 555 010 2200",
-  positionAppliedFor: "Product Analyst",
-  salaryExpectation: null,
-  yearsOfExperience: null,
+  highestEducation: "B.E. Computer Science & Engineering",
+  phone: "+91 97430 11840",
+  positionAppliedFor: "Forward Deployed Engineer",
+  salaryExpectation: 900000,
+  yearsOfExperience: 1,
 };
 
 for (const flatten of [false, true]) {
@@ -98,8 +101,22 @@ for (const flatten of [false, true]) {
 
   assert.equal(generated.headers["content-type"], "application/pdf");
   assert.equal(generated.headers["cache-control"], "no-store");
-  assert.equal(Buffer.from(generated.body).subarray(0, 5).toString(), "%PDF-");
-  assert.equal(Buffer.from(generated.body).byteLength > 1000, true);
+  const generatedBytes = Buffer.from(generated.body);
+  assert.equal(generatedBytes.subarray(0, 5).toString(), "%PDF-");
+  assert.equal(generatedBytes.byteLength > 1000, true);
+
+  const generatedDocument = await PDFDocument.load(generatedBytes);
+  assert.equal(generatedDocument.getPageCount(), 1);
+  const generatedForm = generatedDocument.getForm();
+  if (flatten) {
+    assert.equal(generatedForm.getFields().length, 0);
+  } else {
+    assert.equal(generatedForm.getTextField("job.address").getText(), values.address);
+    assert.equal(
+      generatedForm.getTextField("job.additional_notes").getText(),
+      values.additionalNotes,
+    );
+  }
 }
 
 console.log("Compiled production smoke passed.");
