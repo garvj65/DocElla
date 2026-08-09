@@ -28,9 +28,7 @@ const providerPayload = (
   return isRecord(body.error) ? body.error : body;
 };
 
-const providerRequestId = (
-  cause: Readonly<Record<string, unknown>>,
-): string | undefined => {
+const providerRequestId = (cause: Readonly<Record<string, unknown>>): string | undefined => {
   const headers = cause.headers;
   if (headers instanceof Headers) {
     return (
