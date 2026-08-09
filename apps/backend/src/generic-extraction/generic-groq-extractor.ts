@@ -14,7 +14,11 @@ import type { Environment } from "../config/environment.js";
 import { AppError } from "../errors/app-error.js";
 import { ERROR_CODES } from "../errors/error-codes.js";
 import { ExtractionAbortedError } from "../errors/extraction-aborted-error.js";
-import { mapProviderError, type GroqChatClient } from "../extraction/groq-structured-extractor.js";
+import {
+  mapProviderError,
+  type GroqChatClient,
+  type GroqCompletionCreateRequest,
+} from "../extraction/groq-structured-extractor.js";
 import {
   buildGenericDiscoverySystemInstruction,
   buildGenericDiscoveryUserMessage,
@@ -52,7 +56,7 @@ interface GenericCompletionRequest {
     readonly json_schema: {
       readonly name: string;
       readonly schema: JsonObject;
-      readonly strict: true;
+      readonly strict: boolean;
     };
     readonly type: "json_schema";
   };
@@ -69,6 +73,7 @@ interface CompleteWithBackoffOptions {
   readonly schemaName: string;
   readonly signal: AbortSignal | undefined;
   readonly stage: "discovery" | "extraction";
+  readonly strict?: boolean;
   readonly system: string;
   readonly userMessage: (content: string) => string;
 }
@@ -210,6 +215,7 @@ const buildRequest = (
   schema: JsonObject,
   system: string,
   user: string,
+  strict: boolean,
 ): GenericCompletionRequest => ({
   max_completion_tokens: GENERIC_COMPLETION_TOKENS,
   messages: [
@@ -221,7 +227,7 @@ const buildRequest = (
     json_schema: {
       name: safeSchemaName(schemaName),
       schema,
-      strict: true,
+      strict,
     },
     type: "json_schema",
   },
@@ -237,7 +243,10 @@ const complete = async (
 ): Promise<string | null | undefined> => {
   try {
     throwIfAborted(signal);
-    const completion = await client.chat.completions.create(request, requestOptions(signal));
+    const completion = await client.chat.completions.create(
+      request as unknown as GroqCompletionCreateRequest,
+      requestOptions(signal),
+    );
     throwIfAborted(signal);
     const message = completion.choices?.[0]?.message;
     if (message?.refusal !== undefined && message.refusal !== null) {
@@ -257,6 +266,9 @@ const complete = async (
 const isProviderPayloadTooLarge = (error: unknown): error is AppError =>
   error instanceof AppError && error.safeLogContext?.providerHttpStatus === 413;
 
+const isProviderBadRequest = (error: unknown): error is AppError =>
+  error instanceof AppError && error.safeLogContext?.providerHttpStatus === 400;
+
 const completeWithPayloadBackoff = async ({
   client,
   content,
@@ -266,6 +278,7 @@ const completeWithPayloadBackoff = async ({
   schemaName,
   signal,
   stage,
+  strict = true,
   system,
   userMessage,
 }: CompleteWithBackoffOptions): Promise<string | null | undefined> => {
@@ -283,7 +296,7 @@ const completeWithPayloadBackoff = async ({
       return await complete(
         client,
         environment,
-        buildRequest(environment, schemaName, schema, system, userMessage(sampledContent)),
+        buildRequest(environment, schemaName, schema, system, userMessage(sampledContent), strict),
         signal,
       );
     } catch (error) {
@@ -425,20 +438,46 @@ export const createGenericGroqExtractors = ({
 }: CreateGenericGroqExtractorsOptions): GenericGroqExtractors => ({
   schemaDiscoverer: {
     discover: async ({ layout, signal }): Promise<DiscoveredDocumentSchema> => {
+      let useBestEffortDiscovery = false;
+
       for (const attempt of [0, 1] as const) {
-        const response = await completeWithPayloadBackoff({
-          client,
-          content: layout.content,
-          environment,
-          logger,
-          schema: buildGenericDiscoveryJsonSchema(),
-          schemaName: "generic_schema_discovery_v1",
-          signal,
-          stage: "discovery",
-          system: buildGenericDiscoverySystemInstruction(),
-          userMessage: (content) =>
-            buildGenericDiscoveryUserMessage(layout, content, attempt === 1),
-        });
+        const completeDiscovery = (strict: boolean): Promise<string | null | undefined> =>
+          completeWithPayloadBackoff({
+            client,
+            content: layout.content,
+            environment,
+            logger,
+            schema: buildGenericDiscoveryJsonSchema(),
+            schemaName: "generic_schema_discovery_v1",
+            signal,
+            stage: "discovery",
+            strict,
+            system: buildGenericDiscoverySystemInstruction(),
+            userMessage: (content) =>
+              buildGenericDiscoveryUserMessage(layout, content, attempt === 1),
+          });
+
+        let response: string | null | undefined;
+        try {
+          response = await completeDiscovery(!useBestEffortDiscovery);
+        } catch (error) {
+          if (!useBestEffortDiscovery && isProviderBadRequest(error)) {
+            useBestEffortDiscovery = true;
+            logger.warn(
+              {
+                event: "generic_discovery_strict_fallback",
+                genericExtractionStage: "discovery",
+                providerHttpStatus: 400,
+                providerModel: environment.groqModel,
+              },
+              "Generic discovery strict mode was rejected; retrying with best-effort structured output",
+            );
+            response = await completeDiscovery(false);
+          } else {
+            throw error;
+          }
+        }
+
         try {
           return parseContent(
             response,
