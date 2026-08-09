@@ -41,6 +41,13 @@ const appearanceFontSize = (kind: string, value: string): number => {
   return 10;
 };
 
+const removeBlockingTemplateMaxLength = (pdfField: PDFTextField, value: string): void => {
+  const maximumLength = pdfField.getMaxLength();
+  if (maximumLength !== undefined && value.length > maximumLength) {
+    pdfField.removeMaxLength();
+  }
+};
+
 export const createPdfGenerationService = (
   templateRepository: PdfTemplateRepository,
 ): PdfGenerationService => ({
@@ -98,6 +105,7 @@ export const createPdfGenerationService = (
           });
         }
 
+        removeBlockingTemplateMaxLength(pdfField, value);
         pdfField.setFontSize(appearanceFontSize(field.kind, value));
         pdfField.setText(value);
       }
