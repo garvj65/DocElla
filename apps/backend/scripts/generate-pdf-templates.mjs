@@ -54,8 +54,20 @@ const drawHeader = (page, font, boldFont, title, subtitle, tag) => {
     x: 42,
     y: 706,
   });
-  page.drawText(title, { color: palette.white, font: boldFont, size: 18, x: 60, y: 735 });
-  page.drawText(subtitle, { color: palette.white, font, size: 8.5, x: 60, y: 718 });
+  page.drawText(title, {
+    color: palette.white,
+    font: boldFont,
+    size: 18,
+    x: 60,
+    y: 735,
+  });
+  page.drawText(subtitle, {
+    color: palette.white,
+    font,
+    size: 8.5,
+    x: 60,
+    y: 718,
+  });
   page.drawRectangle({
     color: palette.accent,
     height: 18,
@@ -98,7 +110,13 @@ const drawFooter = (page, font) => {
 };
 
 const drawSection = (page, boldFont, title, y) => {
-  page.drawText(title, { color: palette.ink, font: boldFont, size: 10.5, x: LEFT, y });
+  page.drawText(title, {
+    color: palette.ink,
+    font: boldFont,
+    size: 10.5,
+    x: LEFT,
+    y,
+  });
   page.drawLine({
     color: palette.border,
     end: { x: RIGHT, y: y - 10 },
@@ -146,22 +164,120 @@ const drawJobApplication = (definition, page, form, font, boldFont) => {
   );
 
   drawSection(page, boldFont, "Applicant details", 678);
-  addField({ field: requiredField(fields, "fullName"), font, form, page, width: FULL_WIDTH, x: LEFT, y: 630 });
-  addField({ field: requiredField(fields, "email"), font, form, page, width: COLUMN_WIDTH, x: LEFT, y: 576 });
-  addField({ field: requiredField(fields, "phone"), font, form, page, width: COLUMN_WIDTH, x: SECOND_COLUMN_X, y: 576 });
-  addField({ field: requiredField(fields, "address"), font, form, height: 46, page, width: FULL_WIDTH, x: LEFT, y: 504 });
+  addField({
+    field: requiredField(fields, "fullName"),
+    font,
+    form,
+    page,
+    width: FULL_WIDTH,
+    x: LEFT,
+    y: 630,
+  });
+  addField({
+    field: requiredField(fields, "email"),
+    font,
+    form,
+    page,
+    width: COLUMN_WIDTH,
+    x: LEFT,
+    y: 576,
+  });
+  addField({
+    field: requiredField(fields, "phone"),
+    font,
+    form,
+    page,
+    width: COLUMN_WIDTH,
+    x: SECOND_COLUMN_X,
+    y: 576,
+  });
+  addField({
+    field: requiredField(fields, "address"),
+    font,
+    form,
+    height: 46,
+    page,
+    width: FULL_WIDTH,
+    x: LEFT,
+    y: 504,
+  });
 
   drawSection(page, boldFont, "Current role", 446);
-  addField({ field: requiredField(fields, "currentEmployer"), font, form, page, width: COLUMN_WIDTH, x: LEFT, y: 398 });
-  addField({ field: requiredField(fields, "currentJobTitle"), font, form, page, width: COLUMN_WIDTH, x: SECOND_COLUMN_X, y: 398 });
-  addField({ field: requiredField(fields, "yearsOfExperience"), font, form, page, width: COLUMN_WIDTH, x: LEFT, y: 344 });
-  addField({ field: requiredField(fields, "highestEducation"), font, form, page, width: COLUMN_WIDTH, x: SECOND_COLUMN_X, y: 344 });
+  addField({
+    field: requiredField(fields, "currentEmployer"),
+    font,
+    form,
+    page,
+    width: COLUMN_WIDTH,
+    x: LEFT,
+    y: 398,
+  });
+  addField({
+    field: requiredField(fields, "currentJobTitle"),
+    font,
+    form,
+    page,
+    width: COLUMN_WIDTH,
+    x: SECOND_COLUMN_X,
+    y: 398,
+  });
+  addField({
+    field: requiredField(fields, "yearsOfExperience"),
+    font,
+    form,
+    page,
+    width: COLUMN_WIDTH,
+    x: LEFT,
+    y: 344,
+  });
+  addField({
+    field: requiredField(fields, "highestEducation"),
+    font,
+    form,
+    page,
+    width: COLUMN_WIDTH,
+    x: SECOND_COLUMN_X,
+    y: 344,
+  });
 
   drawSection(page, boldFont, "Application details", 286);
-  addField({ field: requiredField(fields, "positionAppliedFor"), font, form, page, width: FULL_WIDTH, x: LEFT, y: 238 });
-  addField({ field: requiredField(fields, "availableStartDate"), font, form, page, width: COLUMN_WIDTH, x: LEFT, y: 184 });
-  addField({ field: requiredField(fields, "salaryExpectation"), font, form, page, width: COLUMN_WIDTH, x: SECOND_COLUMN_X, y: 184 });
-  addField({ field: requiredField(fields, "additionalNotes"), font, form, height: 46, page, width: FULL_WIDTH, x: LEFT, y: 112 });
+  addField({
+    field: requiredField(fields, "positionAppliedFor"),
+    font,
+    form,
+    page,
+    width: FULL_WIDTH,
+    x: LEFT,
+    y: 238,
+  });
+  addField({
+    field: requiredField(fields, "availableStartDate"),
+    font,
+    form,
+    page,
+    width: COLUMN_WIDTH,
+    x: LEFT,
+    y: 184,
+  });
+  addField({
+    field: requiredField(fields, "salaryExpectation"),
+    font,
+    form,
+    page,
+    width: COLUMN_WIDTH,
+    x: SECOND_COLUMN_X,
+    y: 184,
+  });
+  addField({
+    field: requiredField(fields, "additionalNotes"),
+    font,
+    form,
+    height: 46,
+    page,
+    width: FULL_WIDTH,
+    x: LEFT,
+    y: 112,
+  });
 
   drawFooter(page, font);
 };
@@ -178,25 +294,132 @@ const drawBasicInvoice = (definition, page, form, font, boldFont) => {
   );
 
   drawSection(page, boldFont, "Invoice details", 678);
-  addField({ field: requiredField(fields, "invoiceNumber"), font, form, page, width: COLUMN_WIDTH, x: LEFT, y: 630 });
-  addField({ field: requiredField(fields, "currency"), font, form, page, width: COLUMN_WIDTH, x: SECOND_COLUMN_X, y: 630 });
-  addField({ field: requiredField(fields, "issueDate"), font, form, page, width: COLUMN_WIDTH, x: LEFT, y: 576 });
-  addField({ field: requiredField(fields, "dueDate"), font, form, page, width: COLUMN_WIDTH, x: SECOND_COLUMN_X, y: 576 });
+  addField({
+    field: requiredField(fields, "invoiceNumber"),
+    font,
+    form,
+    page,
+    width: COLUMN_WIDTH,
+    x: LEFT,
+    y: 630,
+  });
+  addField({
+    field: requiredField(fields, "currency"),
+    font,
+    form,
+    page,
+    width: COLUMN_WIDTH,
+    x: SECOND_COLUMN_X,
+    y: 630,
+  });
+  addField({
+    field: requiredField(fields, "issueDate"),
+    font,
+    form,
+    page,
+    width: COLUMN_WIDTH,
+    x: LEFT,
+    y: 576,
+  });
+  addField({
+    field: requiredField(fields, "dueDate"),
+    font,
+    form,
+    page,
+    width: COLUMN_WIDTH,
+    x: SECOND_COLUMN_X,
+    y: 576,
+  });
 
   drawSection(page, boldFont, "Parties", 506);
-  addField({ field: requiredField(fields, "issuerName"), font, form, page, width: COLUMN_WIDTH, x: LEFT, y: 458 });
-  addField({ field: requiredField(fields, "customerName"), font, form, page, width: COLUMN_WIDTH, x: SECOND_COLUMN_X, y: 458 });
-  addField({ field: requiredField(fields, "issuerAddress"), font, form, height: 52, page, width: COLUMN_WIDTH, x: LEFT, y: 380 });
-  addField({ field: requiredField(fields, "customerAddress"), font, form, height: 52, page, width: COLUMN_WIDTH, x: SECOND_COLUMN_X, y: 380 });
+  addField({
+    field: requiredField(fields, "issuerName"),
+    font,
+    form,
+    page,
+    width: COLUMN_WIDTH,
+    x: LEFT,
+    y: 458,
+  });
+  addField({
+    field: requiredField(fields, "customerName"),
+    font,
+    form,
+    page,
+    width: COLUMN_WIDTH,
+    x: SECOND_COLUMN_X,
+    y: 458,
+  });
+  addField({
+    field: requiredField(fields, "issuerAddress"),
+    font,
+    form,
+    height: 52,
+    page,
+    width: COLUMN_WIDTH,
+    x: LEFT,
+    y: 380,
+  });
+  addField({
+    field: requiredField(fields, "customerAddress"),
+    font,
+    form,
+    height: 52,
+    page,
+    width: COLUMN_WIDTH,
+    x: SECOND_COLUMN_X,
+    y: 380,
+  });
 
   drawSection(page, boldFont, "Amounts", 312);
-  addField({ field: requiredField(fields, "subtotal"), font, form, page, width: 160, x: LEFT, y: 264 });
-  addField({ field: requiredField(fields, "tax"), font, form, page, width: 160, x: 226, y: 264 });
-  addField({ field: requiredField(fields, "total"), font, form, page, width: 160, x: 404, y: 264 });
+  addField({
+    field: requiredField(fields, "subtotal"),
+    font,
+    form,
+    page,
+    width: 160,
+    x: LEFT,
+    y: 264,
+  });
+  addField({
+    field: requiredField(fields, "tax"),
+    font,
+    form,
+    page,
+    width: 160,
+    x: 226,
+    y: 264,
+  });
+  addField({
+    field: requiredField(fields, "total"),
+    font,
+    form,
+    page,
+    width: 160,
+    x: 404,
+    y: 264,
+  });
 
   drawSection(page, boldFont, "Payment", 196);
-  addField({ field: requiredField(fields, "paymentTerms"), font, form, page, width: COLUMN_WIDTH, x: LEFT, y: 148 });
-  addField({ field: requiredField(fields, "notes"), font, form, height: 46, page, width: COLUMN_WIDTH, x: SECOND_COLUMN_X, y: 132 });
+  addField({
+    field: requiredField(fields, "paymentTerms"),
+    font,
+    form,
+    page,
+    width: COLUMN_WIDTH,
+    x: LEFT,
+    y: 148,
+  });
+  addField({
+    field: requiredField(fields, "notes"),
+    font,
+    form,
+    height: 46,
+    page,
+    width: COLUMN_WIDTH,
+    x: SECOND_COLUMN_X,
+    y: 132,
+  });
 
   drawFooter(page, font);
 };
@@ -204,7 +427,13 @@ const drawBasicInvoice = (definition, page, form, font, boldFont) => {
 const drawFallback = (definition, pdfDocument, form, font, boldFont) => {
   let page = pdfDocument.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   let y = 720;
-  page.drawText(definition.label, { color: palette.ink, font: boldFont, size: 18, x: LEFT, y });
+  page.drawText(definition.label, {
+    color: palette.ink,
+    font: boldFont,
+    size: 18,
+    x: LEFT,
+    y,
+  });
   y -= 42;
 
   for (const field of definition.fields) {
