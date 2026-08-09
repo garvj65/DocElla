@@ -152,9 +152,7 @@ const parseProviderMessageBody = (
   }
 };
 
-const innerProviderPayload = (
-  value: unknown,
-): Readonly<Record<string, unknown>> | undefined => {
+const innerProviderPayload = (value: unknown): Readonly<Record<string, unknown>> | undefined => {
   if (!isRecord(value)) return undefined;
   return isRecord(value.error) ? value.error : value;
 };
