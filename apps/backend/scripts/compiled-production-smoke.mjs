@@ -96,8 +96,12 @@ for (const flatten of [false, true]) {
       const chunks = [];
       response.on("data", (chunk) => chunks.push(chunk));
       response.on("end", () => callback(null, Buffer.concat(chunks)));
-    })
-    .expect(200);
+    });
+
+  if (generated.status !== 200) {
+    const publicError = Buffer.from(generated.body).toString("utf8").slice(0, 1_000);
+    throw new Error(`PDF production smoke failed with ${String(generated.status)}: ${publicError}`);
+  }
 
   assert.equal(generated.headers["content-type"], "application/pdf");
   assert.equal(generated.headers["cache-control"], "no-store");
