@@ -121,6 +121,75 @@ export const buildGroqCompletionRequest = (
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null;
 
+const safeToken = (value: unknown, maximumLength = 100): string | undefined =>
+  typeof value === "string" &&
+  value.length > 0 &&
+  value.length <= maximumLength &&
+  /^[A-Za-z0-9_.:-]+$/u.test(value)
+    ? value
+    : undefined;
+
+const safeSchemaPath = (value: unknown): string | undefined =>
+  typeof value === "string" &&
+  value.length > 0 &&
+  value.length <= 240 &&
+  /^\/[A-Za-z0-9_./~:-]*$/u.test(value)
+    ? value
+    : undefined;
+
+const parseProviderMessageBody = (
+  error: unknown,
+): Readonly<Record<string, unknown>> | undefined => {
+  if (!(error instanceof Error)) return undefined;
+  const objectStart = error.message.indexOf("{");
+  if (objectStart < 0) return undefined;
+
+  try {
+    const parsed: unknown = JSON.parse(error.message.slice(objectStart));
+    return isRecord(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const innerProviderPayload = (value: unknown): Readonly<Record<string, unknown>> | undefined => {
+  if (!isRecord(value)) return undefined;
+  return isRecord(value.error) ? value.error : value;
+};
+
+const providerPayload = (error: unknown): Readonly<Record<string, unknown>> | undefined => {
+  if (isRecord(error)) {
+    const direct = innerProviderPayload(error.error);
+    if (direct !== undefined) return direct;
+  }
+
+  const parsed = parseProviderMessageBody(error);
+  return parsed === undefined ? undefined : innerProviderPayload(parsed.error);
+};
+
+const classifyProviderReason = (
+  message: unknown,
+  status: number | undefined,
+): string | undefined => {
+  if (typeof message !== "string") return status === 400 ? "bad_request" : undefined;
+  const normalized = message.toLocaleLowerCase();
+
+  if (normalized.includes("invalid json schema")) return "invalid_json_schema";
+  if (
+    normalized.includes("context_length") ||
+    normalized.includes("context length") ||
+    normalized.includes("too many tokens")
+  ) {
+    return "context_length_exceeded";
+  }
+  if (normalized.includes("request entity too large") || normalized.includes("request too large")) {
+    return "request_too_large";
+  }
+  if (normalized.includes("generated json does not match")) return "generated_json_mismatch";
+  if (normalized.includes("response_format")) return "response_format_rejected";
+  return status === 400 ? "bad_request" : undefined;
+};
+
 export const providerStatus = (error: unknown): number | undefined => {
   if (error instanceof APIError && typeof error.status === "number") {
     return error.status;
@@ -142,18 +211,26 @@ const safeProviderContext = (
   error: unknown,
 ): Readonly<Record<string, string | number | boolean>> => {
   const status = providerStatus(error);
-  return status === undefined
-    ? {
-        providerErrorClass: providerClassName(error),
-        providerModel: environment.groqModel,
-        providerMappedCode: code,
-      }
-    : {
-        providerErrorClass: providerClassName(error),
-        providerHttpStatus: status,
-        providerModel: environment.groqModel,
-        providerMappedCode: code,
-      };
+  const payload = providerPayload(error);
+  const providerErrorType = safeToken(payload?.type);
+  const providerErrorCode = safeToken(payload?.code);
+  const providerErrorParam = safeToken(payload?.param);
+  const providerSchemaPath = safeSchemaPath(payload?.schema_path);
+  const providerSchemaKind = safeToken(payload?.schema_kind);
+  const providerErrorReason = classifyProviderReason(payload?.message, status);
+
+  return {
+    providerErrorClass: providerClassName(error),
+    providerModel: environment.groqModel,
+    providerMappedCode: code,
+    ...(status === undefined ? {} : { providerHttpStatus: status }),
+    ...(providerErrorType === undefined ? {} : { providerErrorType }),
+    ...(providerErrorCode === undefined ? {} : { providerErrorCode }),
+    ...(providerErrorParam === undefined ? {} : { providerErrorParam }),
+    ...(providerSchemaPath === undefined ? {} : { providerSchemaPath }),
+    ...(providerSchemaKind === undefined ? {} : { providerSchemaKind }),
+    ...(providerErrorReason === undefined ? {} : { providerErrorReason }),
+  };
 };
 
 const providerAppError = (

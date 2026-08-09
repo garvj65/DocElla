@@ -136,6 +136,12 @@ describe("generic provider JSON Schemas", () => {
   it("generates an exact simple Groq strict-compatible values schema", () => {
     const extraction = buildGenericExtractionJsonSchema(schema);
     const serialized = JSON.stringify(extraction);
+    const properties = rootProperties(extraction);
+    const fieldsSchema = properties.fields;
+    if (!isObject(fieldsSchema)) throw new Error("Expected fields schema.");
+    const fields = rootProperties(fieldsSchema);
+    const repeatableField = fields.approval_states;
+    if (!isObject(repeatableField)) throw new Error("Expected repeatable field schema.");
 
     expect(extraction.type).toBe("object");
     expect(extraction.additionalProperties).toBe(false);
@@ -148,6 +154,8 @@ describe("generic provider JSON Schemas", () => {
     expect(serialized).not.toContain("~standard");
     expect(serialized).not.toContain('"format"');
     expect(serialized).not.toContain('"anyOf"');
+    expect(serialized).not.toContain('"type":["array","null"]');
+    expect(repeatableField.type).toBe("array");
     assertGroqStrictCompatible(extraction);
   });
 

@@ -100,7 +100,10 @@ interface CapturedRequest {
   };
 }
 
-const createClient = (contents: readonly string[], captured: CapturedRequest[]): GroqChatClient => {
+const createClient = (
+  contents: readonly (string | Error)[],
+  captured: CapturedRequest[],
+): GroqChatClient => {
   let index = 0;
   return {
     chat: {
@@ -109,6 +112,7 @@ const createClient = (contents: readonly string[], captured: CapturedRequest[]):
           captured.push(request as unknown as CapturedRequest);
           const content = contents[index];
           index += 1;
+          if (content instanceof Error) throw content;
           return { choices: [{ message: { content } }] };
         },
       },
@@ -158,6 +162,28 @@ describe("createGenericGroqExtractors", () => {
     expect(valuesSchema).not.toContain("anyOf");
     expect(valuesSchema).toContain("invoice_number");
     expect(valuesSchema).not.toContain('"tables"');
+  });
+
+  it("falls back to best-effort discovery after a provider 400 and still validates locally", async () => {
+    const captured: CapturedRequest[] = [];
+    const providerBadRequest = Object.assign(new Error("provider rejected strict discovery"), {
+      status: 400,
+    });
+    const extractors = createGenericGroqExtractors({
+      client: createClient(
+        [providerBadRequest, JSON.stringify(providerDiscoveredSchema)],
+        captured,
+      ),
+      environment,
+      logger,
+    });
+
+    await expect(extractors.schemaDiscoverer.discover({ layout })).resolves.toEqual(
+      discoveredSchema,
+    );
+    expect(captured).toHaveLength(2);
+    expect(captured[0]?.response_format.json_schema.strict).toBe(true);
+    expect(captured[1]?.response_format.json_schema.strict).toBe(false);
   });
 
   it("retries each pass once when local validation rejects provider output", async () => {
