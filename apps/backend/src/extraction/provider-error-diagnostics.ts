@@ -20,13 +20,17 @@ const sanitizeProviderMessage = (message: string): string =>
     .trim()
     .slice(0, MAX_PROVIDER_MESSAGE_LENGTH);
 
-const providerPayload = (cause: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> | undefined => {
+const providerPayload = (
+  cause: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> | undefined => {
   const body = cause.error;
   if (!isRecord(body)) return undefined;
   return isRecord(body.error) ? body.error : body;
 };
 
-const providerRequestId = (cause: Readonly<Record<string, unknown>>): string | undefined => {
+const providerRequestId = (
+  cause: Readonly<Record<string, unknown>>,
+): string | undefined => {
   const headers = cause.headers;
   if (headers instanceof Headers) {
     return (
