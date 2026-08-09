@@ -27,6 +27,27 @@ const mapPdfLoadError = (error: unknown): never => {
   });
 };
 
+const appearanceFontSize = (kind: string, value: string): number => {
+  const compactLength = value.replace(/\s+/gu, " ").trim().length;
+
+  if (kind === "textarea") {
+    if (compactLength > 280) return 7.5;
+    if (compactLength > 160) return 8;
+    return 9;
+  }
+
+  if (compactLength > 70) return 8;
+  if (compactLength > 50) return 9;
+  return 10;
+};
+
+const removeBlockingTemplateMaxLength = (pdfField: PDFTextField, value: string): void => {
+  const maximumLength = pdfField.getMaxLength();
+  if (maximumLength !== undefined && value.length > maximumLength) {
+    pdfField.removeMaxLength();
+  }
+};
+
 export const createPdfGenerationService = (
   templateRepository: PdfTemplateRepository,
 ): PdfGenerationService => ({
@@ -83,6 +104,9 @@ export const createPdfGenerationService = (
             status: 422,
           });
         }
+
+        removeBlockingTemplateMaxLength(pdfField, value);
+        pdfField.setFontSize(appearanceFontSize(field.kind, value));
         pdfField.setText(value);
       }
 
