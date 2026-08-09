@@ -38,6 +38,34 @@ describe("safe provider rejection diagnostics", () => {
     expect(JSON.stringify(mapped.safeLogContext)).not.toContain(privateMarker);
   });
 
+  it("unwraps the nested error body used by the Groq SDK", () => {
+    const error = Object.assign(new Error("400 provider rejected request"), {
+      error: {
+        error: {
+          code: "invalid_json_schema",
+          message: "invalid JSON schema for response_format",
+          param: "response_format",
+          schema_kind: "type",
+          schema_path: "/properties/skills",
+          type: "invalid_request_error",
+        },
+      },
+      status: 400,
+    });
+
+    const mapped = mapProviderError(testEnvironment, error);
+
+    expect(mapped.safeLogContext).toMatchObject({
+      providerErrorCode: "invalid_json_schema",
+      providerErrorParam: "response_format",
+      providerErrorReason: "invalid_json_schema",
+      providerErrorType: "invalid_request_error",
+      providerHttpStatus: 400,
+      providerSchemaKind: "type",
+      providerSchemaPath: "/properties/skills",
+    });
+  });
+
   it("classifies context-length failures without logging raw provider messages", () => {
     const privateMarker = "PRIVATE_RESUME_TEXT";
     const error = providerBadRequest(
