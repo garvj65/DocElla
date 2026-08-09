@@ -6,7 +6,11 @@ describe("validationErrorDiagnosticContext", () => {
   it("exposes only bounded issue codes and paths", () => {
     const context = validationErrorDiagnosticContext({
       issues: [
-        { code: "custom", message: "PRIVATE duplicate value", path: ["sections", 1, "fields", 2, "id"] },
+        {
+          code: "custom",
+          message: "PRIVATE duplicate value",
+          path: ["sections", 1, "fields", 2, "id"],
+        },
         { code: "too_small", minimum: 1, path: ["sections", 3, "fields"] },
       ],
     });
