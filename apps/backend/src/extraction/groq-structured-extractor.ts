@@ -173,10 +173,7 @@ const classifyProviderReason = (
   ) {
     return "context_length_exceeded";
   }
-  if (
-    normalized.includes("request entity too large") ||
-    normalized.includes("request too large")
-  ) {
+  if (normalized.includes("request entity too large") || normalized.includes("request too large")) {
     return "request_too_large";
   }
   if (normalized.includes("generated json does not match")) return "generated_json_mismatch";
