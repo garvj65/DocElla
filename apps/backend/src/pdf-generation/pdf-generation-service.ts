@@ -27,6 +27,20 @@ const mapPdfLoadError = (error: unknown): never => {
   });
 };
 
+const appearanceFontSize = (kind: string, value: string): number => {
+  const compactLength = value.replace(/\s+/gu, " ").trim().length;
+
+  if (kind === "textarea") {
+    if (compactLength > 280) return 7.5;
+    if (compactLength > 160) return 8;
+    return 9;
+  }
+
+  if (compactLength > 70) return 8;
+  if (compactLength > 50) return 9;
+  return 10;
+};
+
 export const createPdfGenerationService = (
   templateRepository: PdfTemplateRepository,
 ): PdfGenerationService => ({
@@ -83,6 +97,8 @@ export const createPdfGenerationService = (
             status: 422,
           });
         }
+
+        pdfField.setFontSize(appearanceFontSize(field.kind, value));
         pdfField.setText(value);
       }
 
