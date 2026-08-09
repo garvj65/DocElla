@@ -55,7 +55,10 @@ const providerReason = (
 ): string | undefined => {
   const searchable = `${code ?? ""} ${type ?? ""} ${message ?? ""}`.toLocaleLowerCase();
 
-  if (searchable.includes("blocked_api_access") || searchable.includes("spend limit")) {
+  if (
+    searchable.includes("blocked_api_access") ||
+    searchable.includes("spend limit")
+  ) {
     return "access_blocked";
   }
   if (searchable.includes("response_format")) return "invalid_response_format";
