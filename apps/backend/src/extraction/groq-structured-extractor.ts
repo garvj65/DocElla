@@ -137,7 +137,9 @@ const safeSchemaPath = (value: unknown): string | undefined =>
     ? value
     : undefined;
 
-const parseProviderMessageBody = (error: unknown): Readonly<Record<string, unknown>> | undefined => {
+const parseProviderMessageBody = (
+  error: unknown,
+): Readonly<Record<string, unknown>> | undefined => {
   if (!(error instanceof Error)) return undefined;
   const objectStart = error.message.indexOf("{");
   if (objectStart < 0) return undefined;
@@ -156,7 +158,10 @@ const providerPayload = (error: unknown): Readonly<Record<string, unknown>> | un
   return parsed !== undefined && isRecord(parsed.error) ? parsed.error : undefined;
 };
 
-const classifyProviderReason = (message: unknown, status: number | undefined): string | undefined => {
+const classifyProviderReason = (
+  message: unknown,
+  status: number | undefined,
+): string | undefined => {
   if (typeof message !== "string") return status === 400 ? "bad_request" : undefined;
   const normalized = message.toLocaleLowerCase();
 
@@ -168,7 +173,10 @@ const classifyProviderReason = (message: unknown, status: number | undefined): s
   ) {
     return "context_length_exceeded";
   }
-  if (normalized.includes("request entity too large") || normalized.includes("request too large")) {
+  if (
+    normalized.includes("request entity too large") ||
+    normalized.includes("request too large")
+  ) {
     return "request_too_large";
   }
   if (normalized.includes("generated json does not match")) return "generated_json_mismatch";
