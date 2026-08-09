@@ -14,6 +14,7 @@ describe("committed PDF template assets", () => {
         const bytes = await readFile(path.join(assetRoot, template.assetPath));
         expect(Buffer.from(bytes.subarray(0, 5)).toString()).toBe("%PDF-");
         const pdfDocument = await PDFDocument.load(bytes);
+        expect(pdfDocument.getPageCount()).toBe(1);
         const form = pdfDocument.getForm();
         expect(typeof form.hasXFA === "function" ? form.hasXFA() : false).toBe(false);
 
