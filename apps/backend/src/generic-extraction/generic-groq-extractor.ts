@@ -14,13 +14,21 @@ import type { Environment } from "../config/environment.js";
 import { AppError } from "../errors/app-error.js";
 import { ERROR_CODES } from "../errors/error-codes.js";
 import { ExtractionAbortedError } from "../errors/extraction-aborted-error.js";
-import { mapProviderError, type GroqChatClient } from "../extraction/groq-structured-extractor.js";
+import {
+  mapProviderError,
+  type GroqChatClient,
+  type GroqCompletionCreateRequest,
+} from "../extraction/groq-structured-extractor.js";
 import {
   buildGenericDiscoverySystemInstruction,
   buildGenericDiscoveryUserMessage,
   buildGenericExtractionSystemInstruction,
   buildGenericExtractionUserMessage,
 } from "./generic-extraction-prompt.js";
+import {
+  buildGenericExtractionBatches,
+  type GenericExtractionBatch,
+} from "./generic-extraction-batches.js";
 import { genericProviderBudgets, sampleGenericProviderContent } from "./generic-provider-budget.js";
 import type { GenericSchemaDiscoverer, GenericValueExtractor } from "./generic-extraction-types.js";
 
@@ -48,7 +56,7 @@ interface GenericCompletionRequest {
     readonly json_schema: {
       readonly name: string;
       readonly schema: JsonObject;
-      readonly strict: true;
+      readonly strict: boolean;
     };
     readonly type: "json_schema";
   };
@@ -65,8 +73,19 @@ interface CompleteWithBackoffOptions {
   readonly schemaName: string;
   readonly signal: AbortSignal | undefined;
   readonly stage: "discovery" | "extraction";
+  readonly strict?: boolean;
   readonly system: string;
   readonly userMessage: (content: string) => string;
+}
+
+interface ExtractBatchOptions {
+  readonly batch: GenericExtractionBatch;
+  readonly client: GroqChatClient;
+  readonly content: string;
+  readonly environment: Environment;
+  readonly layout: Parameters<typeof buildGenericExtractionUserMessage>[0];
+  readonly logger: Logger;
+  readonly signal: AbortSignal | undefined;
 }
 
 const throwIfAborted = (signal: AbortSignal | undefined): void => {
@@ -126,6 +145,25 @@ const normalizeProviderDiscoveryResult = (value: unknown): unknown => {
   };
 };
 
+const normalizeRepeatableProviderFields = (
+  value: unknown,
+  documentSchema: DiscoveredDocumentSchema,
+): unknown => {
+  if (!isRecord(value)) return value;
+
+  const normalized: Record<string, unknown> = { ...value };
+  for (const section of documentSchema.sections) {
+    for (const field of section.fields) {
+      if (!field.repeatable) continue;
+      const fieldValue = normalized[field.id];
+      if (isUnknownArray(fieldValue) && fieldValue.length === 0) {
+        normalized[field.id] = null;
+      }
+    }
+  }
+  return normalized;
+};
+
 const normalizeProviderValuesResult = (
   value: unknown,
   documentSchema: DiscoveredDocumentSchema,
@@ -137,7 +175,9 @@ const normalizeProviderValuesResult = (
 
   return {
     ...value,
-    ...(hasFields ? {} : { fields: {} }),
+    ...(hasFields
+      ? { fields: normalizeRepeatableProviderFields(value.fields, documentSchema) }
+      : { fields: {} }),
     ...(hasTables ? {} : { tables: {} }),
   };
 };
@@ -175,6 +215,7 @@ const buildRequest = (
   schema: JsonObject,
   system: string,
   user: string,
+  strict: boolean,
 ): GenericCompletionRequest => ({
   max_completion_tokens: GENERIC_COMPLETION_TOKENS,
   messages: [
@@ -186,7 +227,7 @@ const buildRequest = (
     json_schema: {
       name: safeSchemaName(schemaName),
       schema,
-      strict: true,
+      strict,
     },
     type: "json_schema",
   },
@@ -202,7 +243,10 @@ const complete = async (
 ): Promise<string | null | undefined> => {
   try {
     throwIfAborted(signal);
-    const completion = await client.chat.completions.create(request, requestOptions(signal));
+    const completion = await client.chat.completions.create(
+      request as unknown as GroqCompletionCreateRequest,
+      requestOptions(signal),
+    );
     throwIfAborted(signal);
     const message = completion.choices?.[0]?.message;
     if (message?.refusal !== undefined && message.refusal !== null) {
@@ -222,6 +266,9 @@ const complete = async (
 const isProviderPayloadTooLarge = (error: unknown): error is AppError =>
   error instanceof AppError && error.safeLogContext?.providerHttpStatus === 413;
 
+const isProviderBadRequest = (error: unknown): error is AppError =>
+  error instanceof AppError && error.safeLogContext?.providerHttpStatus === 400;
+
 const completeWithPayloadBackoff = async ({
   client,
   content,
@@ -231,6 +278,7 @@ const completeWithPayloadBackoff = async ({
   schemaName,
   signal,
   stage,
+  strict = true,
   system,
   userMessage,
 }: CompleteWithBackoffOptions): Promise<string | null | undefined> => {
@@ -248,7 +296,7 @@ const completeWithPayloadBackoff = async ({
       return await complete(
         client,
         environment,
-        buildRequest(environment, schemaName, schema, system, userMessage(sampledContent)),
+        buildRequest(environment, schemaName, schema, system, userMessage(sampledContent), strict),
         signal,
       );
     } catch (error) {
@@ -298,6 +346,91 @@ const warnRetry = (
   );
 };
 
+const logBatchProviderFailure = (
+  logger: Logger,
+  environment: Environment,
+  batch: GenericExtractionBatch,
+  error: AppError,
+): void => {
+  const fieldCount = batch.schema.sections.reduce(
+    (total, section) => total + section.fields.length,
+    0,
+  );
+  const repeatableFieldCount = batch.schema.sections.reduce(
+    (total, section) => total + section.fields.filter((field) => field.repeatable).length,
+    0,
+  );
+
+  logger.warn(
+    {
+      code: error.code,
+      event: "generic_extraction_provider_batch_failed",
+      genericExtractionBatch: batch.id,
+      genericExtractionFieldCount: fieldCount,
+      genericExtractionRepeatableFieldCount: repeatableFieldCount,
+      genericExtractionTableCount: batch.schema.tables.length,
+      providerHttpStatus: error.safeLogContext?.providerHttpStatus,
+      providerModel: environment.groqModel,
+    },
+    "Generic extraction provider rejected a bounded extraction batch",
+  );
+};
+
+const extractBatchValues = async ({
+  batch,
+  client,
+  content,
+  environment,
+  layout,
+  logger,
+  signal,
+}: ExtractBatchOptions): Promise<GenericDocumentValues> => {
+  const parser = buildGenericDocumentExtractionValuesSchema(batch.schema);
+
+  for (const attempt of [0, 1] as const) {
+    let response: string | null | undefined;
+    try {
+      response = await completeWithPayloadBackoff({
+        client,
+        content,
+        environment,
+        logger,
+        schema: buildGenericExtractionJsonSchema(batch.schema),
+        schemaName: `generic_values_${batch.schema.documentType}_${batch.id}_v1`,
+        signal,
+        stage: "extraction",
+        system: buildGenericExtractionSystemInstruction(batch.schema),
+        userMessage: (sampledContent) =>
+          buildGenericExtractionUserMessage(layout, sampledContent, attempt === 1),
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        logBatchProviderFailure(logger, environment, batch, error);
+      }
+      throw error;
+    }
+
+    try {
+      return parseContent(
+        response,
+        parser,
+        ERROR_CODES.GENERIC_EXTRACTION_OUTPUT_INVALID,
+        "extraction",
+        (value) => normalizeProviderValuesResult(value, batch.schema),
+      );
+    } catch (error) {
+      if (attempt === 0 && error instanceof AppError) {
+        warnRetry(logger, environment, "extraction");
+        throwIfAborted(signal);
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw invalidOutput(ERROR_CODES.GENERIC_EXTRACTION_OUTPUT_INVALID, "extraction");
+};
+
 export const createGenericGroqExtractors = ({
   client,
   environment,
@@ -305,20 +438,46 @@ export const createGenericGroqExtractors = ({
 }: CreateGenericGroqExtractorsOptions): GenericGroqExtractors => ({
   schemaDiscoverer: {
     discover: async ({ layout, signal }): Promise<DiscoveredDocumentSchema> => {
+      let useBestEffortDiscovery = false;
+
       for (const attempt of [0, 1] as const) {
-        const response = await completeWithPayloadBackoff({
-          client,
-          content: layout.content,
-          environment,
-          logger,
-          schema: buildGenericDiscoveryJsonSchema(),
-          schemaName: "generic_schema_discovery_v1",
-          signal,
-          stage: "discovery",
-          system: buildGenericDiscoverySystemInstruction(),
-          userMessage: (content) =>
-            buildGenericDiscoveryUserMessage(layout, content, attempt === 1),
-        });
+        const completeDiscovery = (strict: boolean): Promise<string | null | undefined> =>
+          completeWithPayloadBackoff({
+            client,
+            content: layout.content,
+            environment,
+            logger,
+            schema: buildGenericDiscoveryJsonSchema(),
+            schemaName: "generic_schema_discovery_v1",
+            signal,
+            stage: "discovery",
+            strict,
+            system: buildGenericDiscoverySystemInstruction(),
+            userMessage: (content) =>
+              buildGenericDiscoveryUserMessage(layout, content, attempt === 1),
+          });
+
+        let response: string | null | undefined;
+        try {
+          response = await completeDiscovery(!useBestEffortDiscovery);
+        } catch (error) {
+          if (!useBestEffortDiscovery && isProviderBadRequest(error)) {
+            useBestEffortDiscovery = true;
+            logger.warn(
+              {
+                event: "generic_discovery_strict_fallback",
+                genericExtractionStage: "discovery",
+                providerHttpStatus: 400,
+                providerModel: environment.groqModel,
+              },
+              "Generic discovery strict mode was rejected; retrying with best-effort structured output",
+            );
+            response = await completeDiscovery(false);
+          } else {
+            throw error;
+          }
+        }
+
         try {
           return parseContent(
             response,
@@ -341,39 +500,48 @@ export const createGenericGroqExtractors = ({
   },
   valueExtractor: {
     extract: async ({ documentSchema, layout, signal }): Promise<GenericDocumentValues> => {
-      const parser = buildGenericDocumentExtractionValuesSchema(documentSchema);
-      for (const attempt of [0, 1] as const) {
-        const response = await completeWithPayloadBackoff({
+      const batches = buildGenericExtractionBatches(documentSchema);
+      const mergedFields: Record<string, unknown> = {};
+      const mergedTables: Record<string, unknown> = {};
+
+      for (const [batchIndex, batch] of batches.entries()) {
+        throwIfAborted(signal);
+        logger.debug(
+          {
+            event: "generic_extraction_batch_started",
+            genericExtractionBatch: batch.id,
+            genericExtractionBatchIndex: batchIndex + 1,
+            genericExtractionBatchTotal: batches.length,
+            providerModel: environment.groqModel,
+          },
+          "Extracting bounded generic document batch",
+        );
+
+        const values = await extractBatchValues({
+          batch,
           client,
           content: layout.content,
           environment,
+          layout,
           logger,
-          schema: buildGenericExtractionJsonSchema(documentSchema),
-          schemaName: `generic_values_${documentSchema.documentType}_v1`,
           signal,
-          stage: "extraction",
-          system: buildGenericExtractionSystemInstruction(documentSchema),
-          userMessage: (content) =>
-            buildGenericExtractionUserMessage(layout, content, attempt === 1),
         });
-        try {
-          return parseContent(
-            response,
-            parser,
-            ERROR_CODES.GENERIC_EXTRACTION_OUTPUT_INVALID,
-            "extraction",
-            (value) => normalizeProviderValuesResult(value, documentSchema),
-          );
-        } catch (error) {
-          if (attempt === 0 && error instanceof AppError) {
-            warnRetry(logger, environment, "extraction");
-            throwIfAborted(signal);
-            continue;
-          }
-          throw error;
-        }
+
+        Object.assign(mergedFields, values.fields);
+        Object.assign(mergedTables, values.tables);
       }
-      throw invalidOutput(ERROR_CODES.GENERIC_EXTRACTION_OUTPUT_INVALID, "extraction");
+
+      const parser = buildGenericDocumentExtractionValuesSchema(documentSchema);
+      const result = parser.safeParse({ fields: mergedFields, tables: mergedTables });
+      if (!result.success) {
+        throw invalidOutput(
+          ERROR_CODES.GENERIC_EXTRACTION_OUTPUT_INVALID,
+          "extraction",
+          result.error,
+        );
+      }
+
+      return result.data;
     },
   },
 });
