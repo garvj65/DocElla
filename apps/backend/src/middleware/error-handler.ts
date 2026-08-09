@@ -3,6 +3,7 @@ import type { Logger } from "pino";
 
 import { AppError } from "../errors/app-error.js";
 import { ERROR_CODES } from "../errors/error-codes.js";
+import { providerErrorDiagnosticContext } from "../extraction/provider-error-diagnostics.js";
 import { sendError } from "../http/responses.js";
 
 interface ParserError {
@@ -66,6 +67,7 @@ export const errorHandler =
       path: pathOnly(request),
       requestId: request.requestId,
       ...appError.safeLogContext,
+      ...providerErrorDiagnosticContext(appError.cause),
     };
 
     if (appError.status >= 500 || !appError.isOperational) {
