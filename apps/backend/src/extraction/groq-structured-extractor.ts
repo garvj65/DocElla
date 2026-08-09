@@ -152,10 +152,21 @@ const parseProviderMessageBody = (
   }
 };
 
+const innerProviderPayload = (
+  value: unknown,
+): Readonly<Record<string, unknown>> | undefined => {
+  if (!isRecord(value)) return undefined;
+  return isRecord(value.error) ? value.error : value;
+};
+
 const providerPayload = (error: unknown): Readonly<Record<string, unknown>> | undefined => {
-  if (isRecord(error) && isRecord(error.error)) return error.error;
+  if (isRecord(error)) {
+    const direct = innerProviderPayload(error.error);
+    if (direct !== undefined) return direct;
+  }
+
   const parsed = parseProviderMessageBody(error);
-  return parsed !== undefined && isRecord(parsed.error) ? parsed.error : undefined;
+  return parsed === undefined ? undefined : innerProviderPayload(parsed.error);
 };
 
 const classifyProviderReason = (
