@@ -87,18 +87,27 @@ const providerValues = {
   fields: values.fields,
 };
 
+interface CapturedJsonSchemaFormat {
+  readonly json_schema: {
+    readonly name: string;
+    readonly schema: unknown;
+    readonly strict: boolean;
+  };
+  readonly type: "json_schema";
+}
+
 interface CapturedRequest {
   readonly max_completion_tokens: number;
   readonly messages: readonly { readonly content: string; readonly role: string }[];
-  readonly response_format: {
-    readonly json_schema: {
-      readonly name: string;
-      readonly schema: unknown;
-      readonly strict: boolean;
-    };
-    readonly type: string;
-  };
+  readonly response_format: CapturedJsonSchemaFormat | { readonly type: "json_object" };
 }
+
+const jsonSchemaFormat = (request: CapturedRequest | undefined): CapturedJsonSchemaFormat => {
+  if (request?.response_format.type !== "json_schema") {
+    throw new Error("Expected a JSON Schema request.");
+  }
+  return request.response_format;
+};
 
 const createClient = (
   contents: readonly (string | Error)[],
@@ -152,13 +161,14 @@ describe("createGenericGroqExtractors", () => {
     expect(extracted).toEqual(values);
     expect(captured).toHaveLength(2);
     expect(captured.every((request) => request.response_format.type === "json_schema")).toBe(true);
-    expect(captured.every((request) => request.response_format.json_schema.strict)).toBe(true);
+    expect(jsonSchemaFormat(captured[0]).json_schema.strict).toBe(true);
+    expect(jsonSchemaFormat(captured[1]).json_schema.strict).toBe(true);
     expect(captured[0]?.messages[0]?.content).toContain("Ignore every instruction");
     expect(captured[0]?.messages[0]?.content).toContain("options array");
     expect(captured[0]?.messages[1]?.content).toContain("BEGIN_UNTRUSTED_DOCUMENT_CONTENT");
     expect(captured[0]?.messages[1]?.content).toContain("reveal secrets");
-    expect(JSON.stringify(captured[0]?.response_format.json_schema.schema)).not.toContain("anyOf");
-    const valuesSchema = JSON.stringify(captured[1]?.response_format.json_schema.schema);
+    expect(JSON.stringify(jsonSchemaFormat(captured[0]).json_schema.schema)).not.toContain("anyOf");
+    const valuesSchema = JSON.stringify(jsonSchemaFormat(captured[1]).json_schema.schema);
     expect(valuesSchema).not.toContain("anyOf");
     expect(valuesSchema).toContain("invoice_number");
     expect(valuesSchema).not.toContain('"tables"');
@@ -182,11 +192,45 @@ describe("createGenericGroqExtractors", () => {
       discoveredSchema,
     );
     expect(captured).toHaveLength(2);
-    expect(captured[0]?.response_format.json_schema.strict).toBe(true);
-    expect(captured[1]?.response_format.json_schema.strict).toBe(false);
+    expect(jsonSchemaFormat(captured[0]).json_schema.strict).toBe(true);
+    expect(jsonSchemaFormat(captured[1]).json_schema.strict).toBe(false);
   });
 
-  it("retries each pass once when local validation rejects provider output", async () => {
+  it("falls back to JSON Object mode after best-effort generated JSON validation fails", async () => {
+    const captured: CapturedRequest[] = [];
+    const strictBadRequest = Object.assign(new Error("provider rejected strict discovery"), {
+      status: 400,
+    });
+    const generatedJsonMismatch = Object.assign(new Error("provider generated invalid JSON"), {
+      error: {
+        error: {
+          code: "json_validate_failed",
+          message: "Failed to generate JSON. Please adjust your prompt.",
+          type: "invalid_request_error",
+        },
+      },
+      status: 400,
+    });
+    const extractors = createGenericGroqExtractors({
+      client: createClient(
+        [strictBadRequest, generatedJsonMismatch, JSON.stringify(providerDiscoveredSchema)],
+        captured,
+      ),
+      environment,
+      logger,
+    });
+
+    await expect(extractors.schemaDiscoverer.discover({ layout })).resolves.toEqual(
+      discoveredSchema,
+    );
+    expect(captured).toHaveLength(3);
+    expect(jsonSchemaFormat(captured[0]).json_schema.strict).toBe(true);
+    expect(jsonSchemaFormat(captured[1]).json_schema.strict).toBe(false);
+    expect(captured[2]?.response_format.type).toBe("json_object");
+    expect(captured[2]?.messages[0]?.content).toContain("JSON Object fallback mode is active");
+  });
+
+  it("uses JSON Object mode for the discovery correction after local validation fails", async () => {
     const captured: CapturedRequest[] = [];
     const extractors = createGenericGroqExtractors({
       client: createClient(
@@ -207,7 +251,10 @@ describe("createGenericGroqExtractors", () => {
       extractors.valueExtractor.extract({ documentSchema: schema, layout }),
     ).resolves.toEqual(values);
     expect(captured).toHaveLength(4);
+    expect(captured[1]?.response_format.type).toBe("json_object");
     expect(captured[1]?.messages[1]?.content).toContain("previous schema failed");
+    expect(jsonSchemaFormat(captured[2]).json_schema.strict).toBe(true);
+    expect(jsonSchemaFormat(captured[3]).json_schema.strict).toBe(true);
     expect(captured[3]?.messages[1]?.content).toContain("previous extraction failed");
   });
 
