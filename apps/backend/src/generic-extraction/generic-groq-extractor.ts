@@ -20,6 +20,7 @@ import {
   type GroqCompletionCreateRequest,
 } from "../extraction/groq-structured-extractor.js";
 import {
+  buildGenericDiscoveryJsonObjectSystemInstruction,
   buildGenericDiscoverySystemInstruction,
   buildGenericDiscoveryUserMessage,
   buildGenericExtractionSystemInstruction,
@@ -33,6 +34,8 @@ import { genericProviderBudgets, sampleGenericProviderContent } from "./generic-
 import type { GenericSchemaDiscoverer, GenericValueExtractor } from "./generic-extraction-types.js";
 
 const GENERIC_COMPLETION_TOKENS = 4_096 as const;
+
+type GenericResponseMode = "best_effort_schema" | "json_object" | "strict_schema";
 
 export interface CreateGenericGroqExtractorsOptions {
   readonly client: GroqChatClient;
@@ -52,14 +55,18 @@ interface GenericCompletionRequest {
     readonly role: "system" | "user";
   }[];
   readonly model: string;
-  readonly response_format: {
-    readonly json_schema: {
-      readonly name: string;
-      readonly schema: JsonObject;
-      readonly strict: boolean;
-    };
-    readonly type: "json_schema";
-  };
+  readonly response_format:
+    | {
+        readonly json_schema: {
+          readonly name: string;
+          readonly schema: JsonObject;
+          readonly strict: boolean;
+        };
+        readonly type: "json_schema";
+      }
+    | {
+        readonly type: "json_object";
+      };
   readonly stream: false;
   readonly temperature: 0;
 }
@@ -69,11 +76,11 @@ interface CompleteWithBackoffOptions {
   readonly content: string;
   readonly environment: Environment;
   readonly logger: Logger;
+  readonly mode?: GenericResponseMode;
   readonly schema: JsonObject;
   readonly schemaName: string;
   readonly signal: AbortSignal | undefined;
   readonly stage: "discovery" | "extraction";
-  readonly strict?: boolean;
   readonly system: string;
   readonly userMessage: (content: string) => string;
 }
@@ -215,7 +222,7 @@ const buildRequest = (
   schema: JsonObject,
   system: string,
   user: string,
-  strict: boolean,
+  mode: GenericResponseMode,
 ): GenericCompletionRequest => ({
   max_completion_tokens: GENERIC_COMPLETION_TOKENS,
   messages: [
@@ -223,14 +230,17 @@ const buildRequest = (
     { content: user, role: "user" },
   ],
   model: environment.groqModel,
-  response_format: {
-    json_schema: {
-      name: safeSchemaName(schemaName),
-      schema,
-      strict,
-    },
-    type: "json_schema",
-  },
+  response_format:
+    mode === "json_object"
+      ? { type: "json_object" }
+      : {
+          json_schema: {
+            name: safeSchemaName(schemaName),
+            schema,
+            strict: mode === "strict_schema",
+          },
+          type: "json_schema",
+        },
   stream: false,
   temperature: 0,
 });
@@ -269,16 +279,21 @@ const isProviderPayloadTooLarge = (error: unknown): error is AppError =>
 const isProviderBadRequest = (error: unknown): error is AppError =>
   error instanceof AppError && error.safeLogContext?.providerHttpStatus === 400;
 
+const isProviderGeneratedJsonMismatch = (error: unknown): error is AppError =>
+  error instanceof AppError &&
+  (error.safeLogContext?.providerErrorCode === "json_validate_failed" ||
+    error.safeLogContext?.providerErrorReason === "generated_json_mismatch");
+
 const completeWithPayloadBackoff = async ({
   client,
   content,
   environment,
   logger,
+  mode = "strict_schema",
   schema,
   schemaName,
   signal,
   stage,
-  strict = true,
   system,
   userMessage,
 }: CompleteWithBackoffOptions): Promise<string | null | undefined> => {
@@ -296,7 +311,7 @@ const completeWithPayloadBackoff = async ({
       return await complete(
         client,
         environment,
-        buildRequest(environment, schemaName, schema, system, userMessage(sampledContent), strict),
+        buildRequest(environment, schemaName, schema, system, userMessage(sampledContent), mode),
         signal,
       );
     } catch (error) {
@@ -343,6 +358,22 @@ const warnRetry = (
       providerModel: environment.groqModel,
     },
     "Generic extraction provider output failed local validation; retrying once",
+  );
+};
+
+const warnDiscoveryJsonObjectFallback = (
+  logger: Logger,
+  environment: Environment,
+  reason: "provider_json_mismatch" | "local_validation",
+): void => {
+  logger.warn(
+    {
+      event: "generic_discovery_json_object_fallback",
+      genericExtractionStage: "discovery",
+      genericFallbackReason: reason,
+      providerModel: environment.groqModel,
+    },
+    "Generic discovery is retrying in JSON Object mode with local schema validation",
   );
 };
 
@@ -438,31 +469,34 @@ export const createGenericGroqExtractors = ({
 }: CreateGenericGroqExtractorsOptions): GenericGroqExtractors => ({
   schemaDiscoverer: {
     discover: async ({ layout, signal }): Promise<DiscoveredDocumentSchema> => {
-      let useBestEffortDiscovery = false;
+      let discoveryMode: GenericResponseMode = "strict_schema";
 
       for (const attempt of [0, 1] as const) {
-        const completeDiscovery = (strict: boolean): Promise<string | null | undefined> =>
+        const completeDiscovery = (mode: GenericResponseMode): Promise<string | null | undefined> =>
           completeWithPayloadBackoff({
             client,
             content: layout.content,
             environment,
             logger,
+            mode,
             schema: buildGenericDiscoveryJsonSchema(),
             schemaName: "generic_schema_discovery_v1",
             signal,
             stage: "discovery",
-            strict,
-            system: buildGenericDiscoverySystemInstruction(),
+            system:
+              mode === "json_object"
+                ? buildGenericDiscoveryJsonObjectSystemInstruction()
+                : buildGenericDiscoverySystemInstruction(),
             userMessage: (content) =>
               buildGenericDiscoveryUserMessage(layout, content, attempt === 1),
           });
 
         let response: string | null | undefined;
         try {
-          response = await completeDiscovery(!useBestEffortDiscovery);
+          response = await completeDiscovery(discoveryMode);
         } catch (error) {
-          if (!useBestEffortDiscovery && isProviderBadRequest(error)) {
-            useBestEffortDiscovery = true;
+          if (discoveryMode === "strict_schema" && isProviderBadRequest(error)) {
+            discoveryMode = "best_effort_schema";
             logger.warn(
               {
                 event: "generic_discovery_strict_fallback",
@@ -472,7 +506,19 @@ export const createGenericGroqExtractors = ({
               },
               "Generic discovery strict mode was rejected; retrying with best-effort structured output",
             );
-            response = await completeDiscovery(false);
+
+            try {
+              response = await completeDiscovery(discoveryMode);
+            } catch (bestEffortError) {
+              if (!isProviderGeneratedJsonMismatch(bestEffortError)) throw bestEffortError;
+              discoveryMode = "json_object";
+              warnDiscoveryJsonObjectFallback(logger, environment, "provider_json_mismatch");
+              response = await completeDiscovery(discoveryMode);
+            }
+          } else if (isProviderGeneratedJsonMismatch(error)) {
+            discoveryMode = "json_object";
+            warnDiscoveryJsonObjectFallback(logger, environment, "provider_json_mismatch");
+            response = await completeDiscovery(discoveryMode);
           } else {
             throw error;
           }
@@ -490,6 +536,10 @@ export const createGenericGroqExtractors = ({
           if (attempt === 0 && error instanceof AppError) {
             warnRetry(logger, environment, "discovery");
             throwIfAborted(signal);
+            if (discoveryMode !== "json_object") {
+              discoveryMode = "json_object";
+              warnDiscoveryJsonObjectFallback(logger, environment, "local_validation");
+            }
             continue;
           }
           throw error;

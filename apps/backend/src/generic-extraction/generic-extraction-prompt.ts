@@ -40,7 +40,23 @@ export const buildGenericDiscoverySystemInstruction = (): string =>
       GENERIC_DOCUMENT_LIMITS.maxColumnsPerTable,
     )} columns per table.`,
     "Flat scalar fields and flat table rows only; no nested objects, executable rules, HTML, code, paths, or provider configuration.",
-    "Return only JSON matching the supplied strict JSON Schema.",
+    "Return only a JSON object matching the requested discovery contract. When a JSON Schema is supplied by the API, follow it exactly.",
+  ].join("\n");
+
+export const buildGenericDiscoveryJsonObjectSystemInstruction = (): string =>
+  [
+    buildGenericDiscoverySystemInstruction(),
+    "JSON Object fallback mode is active. Return one valid JSON object and no markdown or commentary.",
+    "Use exactly these top-level keys: documentType, documentTypeLabel, language, schemaVersion, sections, tables, title.",
+    "schemaVersion must be 1. language may be a BCP-47 language string or null. title may be a non-empty string or null.",
+    "Each section must contain exactly id, label, description, fields. fields must contain at least one field.",
+    "Each field must contain exactly id, label, description, valueType, required, repeatable, options.",
+    "Allowed field valueType values are text, long_text, number, currency, date, boolean, email, phone, address, identifier, select.",
+    "For non-select fields, options must be []. For select fields, options must be a non-empty array of objects containing exactly label and value.",
+    "Each table must contain exactly id, label, description, columns. columns must contain at least one column.",
+    "Each table column must contain exactly id, label, description, valueType, required.",
+    "Allowed table-column valueType values are text, number, currency, date, boolean, email, phone, address, identifier.",
+    "Use [] for sections or tables when that category is genuinely absent; never emit placeholder empty section or table objects.",
   ].join("\n");
 
 export const buildGenericDiscoveryUserMessage = (
@@ -53,7 +69,7 @@ export const buildGenericDiscoveryUserMessage = (
     `Content unit: ${layout.contentUnit}`,
     `Content unit count: ${String(layout.contentUnitCount)}`,
     correction
-      ? "The previous schema failed local validation. Rebuild it with globally unique section-prefixed scalar field ids, no empty sections or tables, unique table-column ids, non-empty unique options only for select fields, [] options for every non-select field, and exact JSON Schema compliance."
+      ? "The previous schema failed local validation. Rebuild it with globally unique section-prefixed scalar field ids, no empty sections or tables, unique table-column ids, non-empty unique options only for select fields, [] options for every non-select field, and exact contract compliance."
       : "Discover the most useful bounded form schema for this document. Ensure scalar field ids are globally unique across all sections by prefixing repeated concepts with the section id.",
     untrustedDocument(content),
   ].join("\n");
