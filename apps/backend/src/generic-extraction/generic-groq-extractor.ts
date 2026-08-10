@@ -515,10 +515,7 @@ export const createGenericGroqExtractors = ({
               warnDiscoveryJsonObjectFallback(logger, environment, "provider_json_mismatch");
               response = await completeDiscovery(discoveryMode);
             }
-          } else if (
-            discoveryMode === "best_effort_schema" &&
-            isProviderGeneratedJsonMismatch(error)
-          ) {
+          } else if (isProviderGeneratedJsonMismatch(error)) {
             discoveryMode = "json_object";
             warnDiscoveryJsonObjectFallback(logger, environment, "provider_json_mismatch");
             response = await completeDiscovery(discoveryMode);
