@@ -1,7 +1,8 @@
-# DocElla 1.0.0 Release Checklist
+# DocElla 1.0.0 Production Release Checklist
 
-Complete this checklist after the release-hardening pull request is merged and before publishing the
-`v1.0.0` tag.
+This checklist is for publishing a hosted production release and creating the `v1.0.0` Git tag. It is **not** a statement that the local/Docker project submission is incomplete.
+
+For project evaluation, use [EVALUATOR_GUIDE.md](EVALUATOR_GUIDE.md). Automated code, build, and container gates run in GitHub Actions; deployment-specific checks below apply only when a public hosting target is being configured.
 
 ## Automated gates
 
@@ -30,14 +31,15 @@ Complete this checklist after the release-hardening pull request is merged and b
 - [ ] Basic Invoice form generates an editable PDF.
 - [ ] Basic Invoice form generates a flattened PDF.
 - [ ] A synthetic text-based PDF extracts successfully with the real Groq key.
+- [ ] A representative arbitrary business document reaches generic review with the real Groq key.
 - [ ] Grounding summary and field badges render.
 - [ ] Reviewed edits generate a PDF using the edited values.
-- [ ] Invalid and scanned PDFs fail safely.
+- [ ] Invalid uploads fail safely.
 - [ ] Cancel and retry flows remain usable.
 
 ## Browser and accessibility gates
 
-- [ ] Desktop Chrome smoke passes without console errors.
+- [ ] Desktop Chrome smoke passes without application console errors.
 - [ ] Mobile-width smoke has no horizontal page overflow.
 - [ ] Workflow tabs and primary actions are keyboard-accessible.
 - [ ] Focus is visible.
@@ -50,17 +52,17 @@ Complete this checklist after the release-hardening pull request is merged and b
 
 - [ ] No document values appear in URLs.
 - [ ] No document values appear in local or session storage.
-- [ ] No source text or raw provider response appears in the UI.
+- [ ] No complete source text or raw provider response appears in the UI.
 - [ ] No internal asset path or PDF field name appears in frontend assets.
-- [ ] No uploaded or generated PDF remains on the service filesystem.
-- [ ] Logs contain only safe request metadata.
+- [ ] No uploaded or generated document remains on the service filesystem.
+- [ ] Logs contain only safe request/provider metadata.
 
 ## Release publication
 
-- [ ] Merge the release-hardening PR with a verified head SHA.
-- [ ] Pull the merged `main` branch locally.
-- [ ] Create an annotated `v1.0.0` tag at the merge commit.
+- [ ] Pull the final `main` branch locally.
+- [ ] Run the automated gates against the release commit.
+- [ ] Create an annotated `v1.0.0` tag at that commit.
 - [ ] Push the tag.
 - [ ] Create the GitHub release from `CHANGELOG.md`.
 - [ ] Mark the release as the latest stable release.
-- [ ] Record the deployment URL and final smoke result in the release notes.
+- [ ] Record the deployment URL and final hosted smoke result in the release notes.
