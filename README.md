@@ -1,48 +1,54 @@
 # DocElla
 
-DocElla 1.0.0 is a document-intelligence workspace with three end-to-end workflows:
+DocElla 1.0.0 is an end-to-end document-intelligence workspace for turning business documents into reviewable structured data and reviewed PDFs.
 
-- **Extract:** upload a supported business document, discover its structure, extract fields and
-  tables, inspect grounded evidence, edit the result, validate it, and export reviewed JSON.
-- **Template review:** extract a text-based PDF into a registered fixed schema, review and edit its
-  values, and generate a reviewed PDF.
-- **Create PDF:** complete a schema-driven web form and generate an editable or flattened PDF from a
-  trusted server-side template.
+It supports three workflows:
 
-The project is a TypeScript monorepo with a React/Vite frontend, Express backend, shared Zod
-contracts, Groq strict structured outputs, deterministic local grounding, PDF.js text extraction,
-optional Azure Document Intelligence OCR/layout, and pdf-lib PDF generation.
+- **Extract:** upload a supported business document, discover its structure, extract fields and tables, inspect grounded evidence, edit the result, validate it, and export reviewed JSON.
+- **Template review:** extract a text-based PDF into a registered fixed schema, review and edit its values, and generate a reviewed PDF.
+- **Create PDF:** complete a schema-driven web form and generate an editable or flattened PDF from a trusted server-side template.
 
-## Current scope
+The project is a TypeScript monorepo built with React/Vite, Express, shared Zod contracts, Groq structured outputs, deterministic local grounding, PDF.js text extraction, optional Azure Document Intelligence OCR/layout, and pdf-lib PDF generation.
 
-### Arbitrary-document extraction
+> **Evaluation:** for the shortest path through the product, see [docs/EVALUATOR_GUIDE.md](docs/EVALUATOR_GUIDE.md).
 
-The generic extraction boundary accepts validated files from these families:
+## What DocElla demonstrates
 
-- Digital and scanned PDF
+DocElla is intentionally more than a prompt-to-JSON demo. The implementation includes explicit trust boundaries and recovery paths around document ingestion, model output, review, and PDF generation:
+
+- validated multi-format upload boundaries and memory-only document handling
+- local PDF.js extraction with optional OCR/layout for scanned and non-PDF formats
+- bounded generic schema discovery with provider fallbacks and local validation
+- strict, batched value extraction against generated JSON Schemas
+- deterministic evidence grounding rather than model-authored citations
+- editable human review with validation before export/generation
+- trusted server-side PDF templates with editable and flattened output
+- privacy-safe structured logging, rate limits, cancellation, timeouts, and safe provider diagnostics
+- automated formatting, lint, type, test, release-build, and production-container gates
+
+## Supported inputs
+
+The generic **Extract** workflow accepts validated files from these families:
+
+- digital and scanned PDF
 - JPEG, PNG, BMP, TIFF, and HEIF images
 - DOCX
 - XLSX
 - PPTX
 - HTML
 
-Digital text PDFs use the local PDF.js path. Scanned PDFs, images, Office documents, and HTML require
-optional Azure Document Intelligence credentials.
+Digital text PDFs use the local PDF.js path. Scanned PDFs, images, Office documents, and HTML require optional Azure Document Intelligence credentials.
 
-The generic pipeline discovers bounded sections, scalar fields, repeatable values, and flat tables.
-It then performs a second strict extraction pass, validates the values locally, and computes evidence,
-confidence, warnings, and review states without trusting model-supplied grounding.
+The generic pipeline discovers bounded sections, scalar fields, repeatable values, and flat tables. Discovery prefers Groq JSON Schema output, can fall back to JSON Object Mode when provider-side generated JSON cannot satisfy the discovery schema, and always validates the resulting schema locally. Value extraction remains schema-constrained, locally validated, and batched for larger documents.
 
-### Fixed schemas and PDF templates
+## Fixed schemas and PDF templates
 
 Registered schemas:
 
 - Job Application
 - Basic Invoice
 
-Each schema has a trusted server-side AcroForm template. Clients submit only public schema and
-template identifiers; they cannot provide filesystem paths, field mappings, template bytes, output
-paths, or output filenames.
+Each schema has a trusted server-side AcroForm template. Clients submit only public schema and template identifiers; they cannot provide filesystem paths, field mappings, template bytes, output paths, or output filenames.
 
 ## Architecture
 
@@ -55,23 +61,29 @@ Express production service
    |-- GET /api/health
    |-- GET /api/schemas
    |-- POST /api/documents/extract
-   |      validation -> PDF.js or OCR/layout -> schema discovery
-   |      -> strict value extraction -> local validation -> evidence grounding
+   |      file validation
+   |      -> PDF.js or OCR/layout
+   |      -> bounded schema discovery
+   |      -> local schema validation
+   |      -> batched strict value extraction
+   |      -> deterministic evidence grounding
+   |      -> reviewed JSON workflow
    |-- POST /api/extract
    |      fixed schema -> PDF.js -> Groq -> local grounding
    `-- POST /api/generate-pdf
           shared validation -> trusted template -> pdf-lib -> PDF download
 ```
 
-Development runs Vite and Express separately. Production uses one same-origin Express process for the
-compiled frontend and API.
+Development runs Vite and Express separately. Production uses one same-origin Express process for the compiled frontend and API.
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the trust and data-lifecycle boundaries.
 
 ## Prerequisites
 
 - Node.js 24
 - npm
 - Git
-- Docker for production-image verification
+- Docker only if you want to verify the production image locally
 
 ## Local setup
 
@@ -82,7 +94,7 @@ npm ci
 Copy-Item .env.example .env
 ```
 
-Set a legitimate backend-only Groq key in `.env`:
+Set a backend-only Groq key in `.env`:
 
 ```env
 GROQ_API_KEY=your-secret-key
@@ -110,31 +122,29 @@ Development endpoints:
 
 ## UI workflows
 
-### Extract
+### 1. Extract any supported business document
 
 1. Open the **Extract** workspace.
 2. Choose or drop one supported document up to 10 MiB.
-3. Pass local extension, size, and signature checks.
-4. Click **Analyze document** explicitly.
-5. Review the detected document type, confidence, warnings, fields, tables, and evidence.
-6. Edit scalar, repeatable, and table values.
-7. Validate the edited values against the discovered schema.
-8. Export schema-valid reviewed JSON.
+3. Click **Analyze document**.
+4. Review the detected document type, confidence, warnings, fields, tables, and evidence.
+5. Edit scalar, repeatable, and table values where needed.
+6. Validate the edited values against the discovered schema.
+7. Export schema-valid reviewed JSON.
 
-PDF and browser-safe images render inline. Other formats use a controlled summary and grounded
-evidence rather than executing or embedding source content.
+PDF and browser-safe images render inline. Other formats use a controlled summary and grounded evidence rather than executing or embedding source content.
 
-### Template review
+### 2. Review a fixed-schema PDF
 
 1. Select a registered schema.
 2. Upload one text-based PDF.
-3. Click **Extract** explicitly.
+3. Click **Extract**.
 4. Review per-field grounding and edit the values.
 5. Validate the reviewed form.
 6. Choose a trusted template and editable or flattened output.
 7. Generate and download the reviewed PDF.
 
-### Create PDF
+### 3. Create a PDF from a form
 
 1. Select a registered schema and template.
 2. Complete the dynamic form.
@@ -142,6 +152,31 @@ evidence rather than executing or embedding source content.
 4. Generate and download the PDF.
 
 Editable PDFs retain AcroForm fields. Flattened PDFs convert field appearances into page content.
+
+## Generic extraction reliability
+
+Generic schema discovery and value extraction are intentionally separate.
+
+Discovery uses this recovery order:
+
+```text
+strict JSON Schema
+   -> best-effort JSON Schema when the provider rejects strict generation
+   -> JSON Object Mode when generated JSON cannot satisfy the discovery schema
+   -> local Zod validation and one correction attempt
+```
+
+The fallback does **not** make provider output authoritative. A discovered schema is accepted only after local validation.
+
+Value extraction is stricter: DocElla builds JSON Schemas from the validated discovered schema, splits larger documents into bounded extraction batches, validates every batch locally, and then validates the merged result again.
+
+A provider-only smoke command is available for separating Groq/account configuration from DocElla logic:
+
+```powershell
+npm run smoke:groq -w @docella/backend
+```
+
+It sends no uploaded document content.
 
 ## Grounding and review
 
@@ -153,27 +188,22 @@ Generic review states are:
 - `conflicting`
 - `low_ocr_confidence`
 
-Confidence is a review heuristic, not a factual probability. Important documents require human
-review. Editing does not recompute the original grounding; an independent **Edited** indicator shows
-which values changed.
+Confidence is a review heuristic, not a factual probability. Important documents require human review. Editing does not recompute the original grounding; an independent **Edited** indicator shows which values changed.
 
 ## Privacy and security boundaries
 
 - Uploads, extracted content, reviewed values, and generated PDFs remain in memory.
 - DocElla does not persist documents in a database or object store.
 - Extraction and generation responses use `Cache-Control: no-store`.
-- Complete source text, prompts, raw provider responses, credentials, internal asset paths, and PDF
-  field names are not returned to the frontend.
+- Complete source text, prompts, raw provider responses, credentials, internal asset paths, and PDF field names are not returned to the frontend.
 - Browser previews use local object URLs and are revoked when no longer needed.
 - HTML and Office files are not executed by the frontend.
-- Backend logs redact request and response bodies, cookies, authorization and API-key headers,
-  uploaded bytes, prompts, source text, extracted values, and generated bytes.
+- Backend logs redact request and response bodies, cookies, authorization and API-key headers, uploaded bytes, prompts, source text, extracted values, generated bytes, and provider failed-generation payloads.
 - CORS accepts the configured frontend origin and requests without an Origin header.
 - Extraction and generation use separate process-local rate limits.
 - Proxy trust is an explicit bounded hop count and defaults to disabled.
 
-See [SECURITY.md](SECURITY.md), [docs/GENERIC_EXTRACTION.md](docs/GENERIC_EXTRACTION.md), and
-[docs/OPERATIONS.md](docs/OPERATIONS.md).
+See [SECURITY.md](SECURITY.md), [docs/GENERIC_EXTRACTION.md](docs/GENERIC_EXTRACTION.md), and [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 ## Environment variables
 
@@ -211,28 +241,29 @@ VITE_API_BASE_URL=http://localhost:3001
 
 The production image uses same-origin API requests.
 
-## Repository verification
+## Verification
+
+The main repository gate is:
 
 ```powershell
 npm run format:check
 npm run lint
 npm run typecheck
 npm test
-npm run build
 npm run verify:release
 ```
 
-Additional backend verification:
+Additional backend checks:
 
 ```powershell
 npm run verify:templates -w @docella/backend
+npm run smoke:groq -w @docella/backend
 npm run smoke:mocked -w @docella/backend
 npm run smoke:pdf-generation -w @docella/backend
 npm run smoke:production -w @docella/backend
 ```
 
-`verify:release` builds all workspaces, verifies the frontend production bundle, and runs the compiled
-same-origin production smoke without contacting Groq.
+`verify:release` builds all workspaces, verifies the frontend production bundle, and runs the compiled same-origin production smoke without contacting Groq. Pull requests and pushes to `main` also run the production Docker build, startup, health, frontend, and non-root checks in GitHub Actions.
 
 ## Production Docker image
 
@@ -258,10 +289,9 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for provider-neutral deployment ins
 - No background queue or resumable extraction jobs.
 - No user-uploaded PDF templates.
 - Generic schemas support flat primitive fields and flat repeated tables, not arbitrary nested objects.
-- Legacy Office binaries, password-protected files, audio, video, executables, and proprietary binary
-  formats are outside the supported boundary.
-- Source evidence is shown as bounded snippets and locations; full visual coordinate highlighting is
-  not yet implemented.
+- Generic extraction depends on model/provider reliability; local validation and fallbacks reduce failure modes but do not guarantee extraction success for every document.
+- Legacy Office binaries, password-protected files, audio, video, executables, and proprietary binary formats are outside the supported boundary.
+- Source evidence is shown as bounded snippets and locations; full visual coordinate highlighting is not implemented.
 - Rate limits are process-local and are not distributed across replicas.
 - Grounding verifies textual support, not factual correctness.
 - Standard PDF appearance fonts may reject unsupported characters safely.
@@ -269,13 +299,15 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for provider-neutral deployment ins
 ## Workspace structure
 
 ```text
-apps/frontend    React, Vite, generic and fixed review workspaces, downloads
+apps/frontend    React/Vite workspaces, review UI, previews, validation, downloads
 apps/backend     Express API, layout/OCR, extraction, grounding, generation, production serving
 packages/schemas Shared definitions, generic contracts, and runtime Zod builders
 ```
 
-## Release state
+## Project status
 
-The repository is preparing the `1.0.0` release candidate. The public deployment, Git tag, and GitHub
-release must be created only after the remaining accuracy benchmark and final release review are
-complete.
+**DocElla 1.0.0 is the final submission build.**
+
+The implementation is complete within the scope above and is suitable for local or Docker-based evaluation. Automated repository gates cover formatting, linting, TypeScript, tests, release artifacts, production container startup, health checks, frontend delivery, and non-root execution.
+
+A hosted multi-user SaaS deployment is intentionally outside this project scope; production-hardening items such as authentication, tenant isolation, persistent storage, distributed queues, and distributed rate limiting are documented as explicit future boundaries rather than hidden assumptions.
