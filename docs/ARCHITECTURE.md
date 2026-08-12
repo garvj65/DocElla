@@ -8,65 +8,91 @@ Browser
    v
 Express service
    |-- static Vite frontend
-   |-- /api/health
-   |-- /api/schemas
-   |-- /api/extract
-   |      in-memory upload
-   |      PDF.js text extraction
-   |      Groq structured extraction
-   |      shared Zod validation
-   |      deterministic grounding
+   |-- GET /api/health
+   |-- GET /api/schemas
    |
-   `-- /api/generate-pdf
+   |-- POST /api/documents/extract
+   |      validated in-memory upload
+   |      -> PDF.js or Azure OCR/layout
+   |      -> bounded schema discovery
+   |      -> local schema validation
+   |      -> generated extraction schemas
+   |      -> bounded strict value-extraction batches
+   |      -> merged local value validation
+   |      -> deterministic evidence grounding
+   |      -> generic review result
+   |
+   |-- POST /api/extract
+   |      validated text-PDF upload
+   |      -> registered fixed schema
+   |      -> PDF.js text extraction
+   |      -> Groq structured extraction
+   |      -> shared Zod validation
+   |      -> deterministic grounding
+   |
+   `-- POST /api/generate-pdf
           shared submission validation
-          trusted AcroForm template
-          pdf-lib generation
-          direct binary response
+          -> trusted AcroForm template
+          -> pdf-lib generation
+          -> direct binary response
 ```
 
 ## Shared definitions
 
-`packages/schemas` is the source of truth for public fields, runtime validation, extraction shapes,
-submission shapes, template IDs, and internal PDF mappings.
+`packages/schemas` is the source of truth for public fixed-schema fields, generic extraction contracts, runtime validation, submission shapes, template IDs, and internal PDF mappings.
 
-The frontend receives only public schema and template information. The backend retains template asset
-paths and AcroForm field names.
+The frontend receives only public schema and template information. The backend retains template asset paths and AcroForm field names.
+
+## Generic extraction boundary
+
+Generic extraction separates **schema discovery** from **value extraction**.
+
+Discovery first attempts strict JSON Schema output. Provider-side failures can move the request to best-effort JSON Schema and, specifically for generated-JSON mismatch failures, JSON Object Mode. Regardless of provider mode, the discovered schema is accepted only after local Zod validation. One correction attempt is available after locally invalid discovery output.
+
+After discovery succeeds, DocElla generates value-extraction JSON Schemas from the validated document schema. Larger schemas are split into bounded batches so a single provider request does not need to satisfy an oversized generated schema. Each batch is locally validated, results are merged, and the merged values are validated again against the complete discovered schema.
+
+Deterministic grounding is computed from the local document-layout result. The model does not author the final source evidence shown to the reviewer.
+
+## Layout providers
+
+Digital text PDFs use PDF.js locally.
+
+Scanned PDFs, images, DOCX, XLSX, PPTX, and HTML use Azure Document Intelligence only when the paired backend credentials are configured. These files are treated as untrusted content and are not executed by the browser or server.
 
 ## Production delivery
 
-The Docker build compiles all workspaces. Express serves the frontend from `apps/frontend/dist` only
-when `NODE_ENV=production`.
+The Docker build compiles all workspaces. Express serves the frontend from `apps/frontend/dist` only when `NODE_ENV=production`.
 
-API routes are registered before static handling. Unknown `/api/*` requests remain JSON errors, while
-non-API GET and HEAD requests may receive the single-page application fallback.
+API routes are registered before static handling. Unknown `/api/*` requests remain JSON errors, while non-API GET and HEAD requests may receive the single-page application fallback.
 
 ## Trust boundaries
 
 Untrusted inputs:
 
-- Uploaded PDF bytes and metadata.
-- Schema and template IDs.
-- Form and reviewed values.
-- Request IDs.
-- Browser Origin headers.
-- Proxy forwarding headers unless a bounded trusted-hop count is configured.
-- Provider responses.
-- Server-provided download filenames as interpreted by the frontend.
+- uploaded document bytes and metadata
+- schema and template IDs
+- form and reviewed values
+- request IDs
+- browser Origin headers
+- proxy forwarding headers unless a bounded trusted-hop count is configured
+- model/provider responses
+- OCR/layout provider responses
+- server-provided download filenames as interpreted by the frontend
 
 Trusted inputs:
 
-- Committed document definitions.
-- Committed PDF templates below the backend asset root.
-- Internal field mappings.
-- Validated environment configuration.
+- committed document definitions
+- committed PDF templates below the backend asset root
+- internal field mappings
+- validated environment configuration
+- local runtime validation and grounding logic
 
 ## Data lifecycle
 
-Uploaded PDFs, extracted text, values, review metadata, and generated bytes are held only for the
-request or active browser workflow. DocElla v1 has no application database or object storage.
+Uploaded documents, extracted/layout text, discovered schemas, values, review metadata, and generated bytes are held only for the active request or browser workflow. DocElla v1 has no application database or object storage.
+
+Provider requests necessarily transmit bounded document content to the configured extraction/OCR providers required for that workflow. DocElla itself does not persist provider request/response bodies.
 
 ## Scaling boundary
 
-The service is intentionally stateless between requests, but extraction and generation rate limits
-are process-local. Multiple replicas require a distributed rate-limit store for consistent global
-limits.
+The service is intentionally stateless between requests, but extraction and generation rate limits are process-local. Multiple replicas require a distributed rate-limit store for consistent global limits. Long-running extraction also remains request-bound; there is no background queue or resumable job protocol in v1.
